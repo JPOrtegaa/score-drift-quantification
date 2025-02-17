@@ -216,7 +216,7 @@ def TernarySearch(left, right, f, eps=1e-4):
             right = rightThird
 
 
-# In[6]:
+# In[49]:
 
 
 def MoSS(n, alpha, m):
@@ -234,12 +234,12 @@ scrs = MoSS(2, 0.5, 0.0)
 scrs
 
 
-# In[8]:
+# In[74]:
 
 
 def apply_qntMethod(qntMethod, p_score, n_score, test, TprFpr=None, thr=None, measure="hellinger"):
     import mlquantify  # Ensure the mlquantify package is available
-
+    
     if qntMethod == "CC":
         return CC(test=test, thr=thr)
 
@@ -271,16 +271,16 @@ def apply_qntMethod(qntMethod, p_score, n_score, test, TprFpr=None, thr=None, me
         return ACC(test=test, TprFpr=TprFpr, thr=thr)
 
     if qntMethod == "T50":
-        return mlquantify.T50(test=test, TprFpr=TprFpr)
+        return T50(ts=test, TprFpr=TprFpr)
 
     if qntMethod == "X":
-        return mlquantify.X(test=test, TprFpr=TprFpr)
+        return X(ts=test, TprFpr=TprFpr)
 
     if qntMethod == "MAX":
-        return mlquantify.MAX(test=test, TprFpr=TprFpr)
+        return MAX(ts=test, TprFpr=TprFpr)
 
     if qntMethod == "PACC":
-        return mlquantify.PACC(test=test, TprFpr=TprFpr, thr=thr)
+        return mlquantify.methods.PACC(ts=test, TprFpr=TprFpr, thr=thr)
 
     if qntMethod == "DySyn":
         return DySyn(ts=test, measure=measure)
@@ -298,7 +298,7 @@ def apply_qntMethod(qntMethod, p_score, n_score, test, TprFpr=None, thr=None, me
         return MS(ts=test, TprFpr=TprFpr)
 
     if qntMethod == "MS2":
-        return mlquantify.MS2(test=test, TprFpr=TprFpr)
+        return MS2(ts=test, TprFpr=TprFpr)
 
     if qntMethod == "SMM":
         return SMM(p_scores=p_score, n_scores=n_score, t_scores=test)
@@ -309,7 +309,7 @@ def apply_qntMethod(qntMethod, p_score, n_score, test, TprFpr=None, thr=None, me
 
 # ### Proposal
 
-# In[40]:
+# In[9]:
 
 
 def ACCSyn(ts, measure):
@@ -342,8 +342,25 @@ def ACCSyn(ts, measure):
     return np.array([result, 1 - result], dtype=float)
 
 
-# In[39]:
+# In[52]:
 
+
+def X(ts, TprFpr):
+    dC = CC(ts)  # Implement CC function separately
+
+    min_index = abs((1 - TprFpr[:, 1]) - TprFpr[:, 2])
+    min_index = np.argmin(min_index)
+
+    tpr_fpr_row = TprFpr[min_index, 1:3].astype(float)
+    if tpr_fpr_row.size == 0:
+        raise ValueError("Threshold value not found in TprFpr.")
+
+    tpr, fpr = tpr_fpr_row
+
+    result = (dC[0] - fpr) / (tpr - fpr) if (tpr - fpr) != 0 else 0
+    result = max(0, min(result, 1))
+
+    return np.array([result, 1 - result], dtype=float)
 
 def XSyn(ts, measure):
     MF = np.arange(0.05, 1.0, 0.01)
@@ -380,8 +397,24 @@ def XSyn(ts, measure):
     return np.array([result, 1 - result], dtype=float)
 
 
-# In[38]:
+# In[53]:
 
+
+def MAX(ts, TprFpr):
+    dC = CC(ts)  # Implement CC function separately
+
+    # Usual MAX implementation
+    max_index = abs(TprFpr[:, 1] - TprFpr[:, 2])
+    max_index = np.argmax(max_index)
+
+    tpr_fpr_row = TprFpr[max_index, 1:3].astype(float)
+
+    tpr, fpr = tpr_fpr_row
+
+    result = (dC[0] - fpr) / (tpr - fpr) if (tpr - fpr) != 0 else 0
+    result = max(0, min(result, 1))
+
+    return np.array([result, 1 - result], dtype=float)
 
 def MAXSyn(ts, measure):
     MF = np.arange(0.05, 1.0, 0.01)
@@ -416,8 +449,24 @@ def MAXSyn(ts, measure):
     return np.array([result, 1 - result], dtype=float)
 
 
-# In[37]:
+# In[54]:
 
+
+def T50(ts, TprFpr):
+    dC = CC(ts)  # Implement CC function separately
+
+    # Usual T50 implementation
+    min_index = abs(TprFpr[:, 1] - 0.5)
+    min_index = np.argmin(min_index)
+
+    tpr_fpr_row = TprFpr[min_index, 1:3].astype(float)
+
+    tpr, fpr = tpr_fpr_row
+
+    result = (dC[0] - fpr) / (tpr - fpr) if (tpr - fpr) != 0 else 0
+    result = max(0, min(result, 1))
+
+    return np.array([result, 1 - result], dtype=float)
 
 def T50Syn(ts, measure):
     MF = np.arange(0.05, 1.0, 0.01)
@@ -480,7 +529,7 @@ def T50Syn(ts, measure):
 # plt.show()
 
 
-# In[14]:
+# In[70]:
 
 
 def MS(ts, TprFpr):
@@ -502,8 +551,32 @@ def MS(ts, TprFpr):
     result = np.median(results)
   return np.array([result, 1 - result], dtype=float)
 
+def MS2(ts, TprFpr):
+    results = []
 
-# In[36]:
+    dC = CC(ts)  # Implement CC function separately
+
+    # Usual MS2 implementation
+    index = np.where(abs(TprFpr[:,1]-TprFpr[:,2]) > (1/4))[0].tolist()
+    threshold_set = TprFpr[index,0]
+    if threshold_set.shape[0] == 0:
+      threshold_set = np.arange(0.01, 1.00, 0.01)
+
+    # else usual MS
+    for threshold in threshold_set:
+      threshold = round(threshold, 2) # 0.060000003 shenanigans
+      tpr, fpr = TprFpr[TprFpr[:, 0] == threshold, 1:3].astype(float)[0]
+
+      result = (dC[0] - fpr) / (tpr - fpr) if (tpr - fpr) != 0 else 0
+      result = max(0, min(result, 1))
+
+      results.append(result)
+
+    result = np.median(results)
+    return np.array([result, 1 - result], dtype=float)
+
+
+# In[15]:
 
 
 def MSSyn(ts, measure):
@@ -541,7 +614,7 @@ def MSSyn(ts, measure):
     return np.array([result, 1 - result], dtype=float)
 
 
-# In[35]:
+# In[16]:
 
 
 def MS2Syn(ts, measure):
@@ -597,7 +670,7 @@ def SMM(p_scores, n_scores, t_scores):
   return np.round([alpha, abs(1-alpha)], 2)
 
 
-# In[34]:
+# In[18]:
 
 
 def SMMSyn(ts, measure):
@@ -624,7 +697,7 @@ def SMMSyn(ts, measure):
 
 # ## Main
 
-# In[ ]:
+# In[97]:
 
 
 def exec_eval_complexity(MFtr):
@@ -636,29 +709,73 @@ def exec_eval_complexity(MFtr):
 
     var_perc = np.arange(0, 1.05, 0.05)  # positive class distribution MUDAR PARA 0.05!!
     var_size = [500]  # test set size
-    n_tests = 10  # replication
+    n_tests = 3  # replication
     MF = np.arange(0.05, 1.00, 0.1)  # m parameter for MoSS model
     # qnt = ['MS', 'MSSyn-HD', 'MS2Syn-HD', 'SMM', 'SMMSyn-HD']
 
-    qnt = ['ACC', 'ACCSyn-HD', 'ACCSyn-TS', 'ACCSyn-JD', 'ACCSyn-PS', 'ACCSyn-ORD', 'ACCSyn-SORD', 'ACCSyn-TN',
-           'X', 'XSyn-HD', 'XSyn-TS', 'XSyn-JD', 'XSyn-PS', 'XSyn-ORD', 'XSyn-SORD', 'XSyn-TN',
-           'MAX', 'MAXSyn-HD', 'MAXSyn-TS', 'MAXSyn-JD', 'MAXSyn-PS', 'MAXSyn-ORD', 'MAXSyn-SORD', 'MAXSyn-TN',
-           'T50', 'T50Syn-HD', 'T50Syn-TS', 'T50Syn-JD', 'T50Syn-PS', 'T50Syn-ORD', 'T50Syn-SORD', 'T50Syn-TN',
-           'MS', 'MSSyn-HD', 'MSSyn-TS', 'MSSyn-JD', 'MSSyn-PS', 'MSSyn-ORD', 'MSSyn-SORD', 'MSSyn-TN',
-           'MS2', 'MS2Syn-HD', 'MS2Syn-TS', 'MS2Syn-JD', 'MS2Syn-PS', 'MS2Syn-ORD', 'MS2Syn-SORD', 'MS2Syn-TN',
-           'SMM', 'SMMSyn-HD', 'SMMSyn-TS', 'SMMSyn-JD', 'SMMSyn-PS', 'SMMSyn-ORD', 'SMMSyn-SORD', 'SMMSyn-TN',
-           'DyS', 'DySyn-HD', 'DySyn-TS', 'DySyn-JD', 'DySyn-PS', 'DySyn-ORD', 'DySyn-SORD', 'DySyn-TN',
-           'CC']
+    # qnt = ['ACC', 'ACCSyn-HD', 'ACCSyn-TS', 'ACCSyn-JD', 'ACCSyn-PS', 'ACCSyn-ORD', 'ACCSyn-SORD', 'ACCSyn-TN',
+    #        'X', 'XSyn-HD', 'XSyn-TS', 'XSyn-JD', 'XSyn-PS', 'XSyn-ORD', 'XSyn-SORD', 'XSyn-TN',
+    #        'MAX', 'MAXSyn-HD', 'MAXSyn-TS', 'MAXSyn-JD', 'MAXSyn-PS', 'MAXSyn-ORD', 'MAXSyn-SORD', 'MAXSyn-TN',
+    #        'T50', 'T50Syn-HD', 'T50Syn-TS', 'T50Syn-JD', 'T50Syn-PS', 'T50Syn-ORD', 'T50Syn-SORD', 'T50Syn-TN',
+    #        'MS', 'MSSyn-HD', 'MSSyn-TS', 'MSSyn-JD', 'MSSyn-PS', 'MSSyn-ORD', 'MSSyn-SORD', 'MSSyn-TN',
+    #        'MS2', 'MS2Syn-HD', 'MS2Syn-TS', 'MS2Syn-JD', 'MS2Syn-PS', 'MS2Syn-ORD', 'MS2Syn-SORD', 'MS2Syn-TN',
+    #        'SMM', 'SMMSyn-HD', 'SMMSyn-TS', 'SMMSyn-JD', 'SMMSyn-PS', 'SMMSyn-ORD', 'SMMSyn-SORD', 'SMMSyn-TN',
+    #        'DyS', 'DySyn-HD', 'DySyn-TS', 'DySyn-JD', 'DySyn-PS', 'DySyn-ORD', 'DySyn-SORD', 'DySyn-TN',
+    #        'CC']
+
+    # qnt = ['ACC', 'ACCSyn-HD', 'ACCSyn-TS', 'ACCSyn-JD', 'ACCSyn-PS', 'ACCSyn-ORD', 'ACCSyn-TN',
+    #        'X', 'XSyn-HD', 'XSyn-TS', 'XSyn-JD', 'XSyn-PS', 'XSyn-ORD', 'XSyn-TN',
+    #        'MAX', 'MAXSyn-HD', 'MAXSyn-TS', 'MAXSyn-JD', 'MAXSyn-PS', 'MAXSyn-ORD', 'MAXSyn-TN',
+    #        'T50', 'T50Syn-HD', 'T50Syn-TS', 'T50Syn-JD', 'T50Syn-PS', 'T50Syn-ORD', 'T50Syn-TN',
+    #        'MS', 'MSSyn-HD', 'MSSyn-TS', 'MSSyn-JD', 'MSSyn-PS', 'MSSyn-ORD', 'MSSyn-TN',
+    #        'MS2', 'MS2Syn-HD', 'MS2Syn-TS', 'MS2Syn-JD', 'MS2Syn-PS', 'MS2Syn-ORD', 'MS2Syn-TN',
+    #        'SMM', 'SMMSyn-HD', 'SMMSyn-TS', 'SMMSyn-JD', 'SMMSyn-PS', 'SMMSyn-ORD', 'SMMSyn-TN',
+    #        'DyS', 'DySyn-HD', 'DySyn-TS', 'DySyn-JD', 'DySyn-PS', 'DySyn-ORD', 'DySyn-TN',
+    #        'CC']
+    
+    # qnt = ['ACCSyn-HD', 'ACCSyn-TS', 'ACCSyn-JD', 'ACCSyn-PS', 'ACCSyn-ORD', 'ACCSyn-TN',
+    #     'XSyn-HD', 'XSyn-TS', 'XSyn-JD', 'XSyn-PS', 'XSyn-ORD', 'XSyn-TN',
+    #     'MAXSyn-HD', 'MAXSyn-TS', 'MAXSyn-JD', 'MAXSyn-PS', 'MAXSyn-ORD', 'MAXSyn-TN',
+    #     'T50Syn-HD', 'T50Syn-TS', 'T50Syn-JD', 'T50Syn-PS', 'T50Syn-ORD', 'T50Syn-TN',
+    #     'MSSyn-HD', 'MSSyn-TS', 'MSSyn-JD', 'MSSyn-PS', 'MSSyn-ORD', 'MSSyn-TN',
+    #     'MS2Syn-HD', 'MS2Syn-TS', 'MS2Syn-JD', 'MS2Syn-PS', 'MS2Syn-ORD', 'MS2Syn-TN',
+    #     'SMMSyn-HD', 'SMMSyn-TS', 'SMMSyn-JD', 'SMMSyn-PS', 'SMMSyn-ORD', 'SMMSyn-TN',
+    #     'DySyn-HD', 'DySyn-TS', 'DySyn-JD', 'DySyn-PS', 'DySyn-ORD', 'DySyn-TN',
+    #     'CC']
+
+
+    # PC RAFAEL
+    # qnt = ['ACCSyn-TS',
+    #        'XSyn-TS',
+    #        'MAXSyn-TS',
+    #        'T50Syn-TS',
+    #        'MS2Syn-TS',
+    #        'SMMSyn-TS',
+    #        'DySyn-TS']
+
+    # PC LUIZ
+    qnt = ['T50', 'MS2', 'SMM', 'DyS-TS', 'X', 'MAX', 'ACC', 'CC']
+
+    # qnt = ['T50', 'T50Syn-TS',
+    #        'MS', 'MSSyn-TS',
+    #        'MS2', 'MS2Syn-TS',
+    #        'SMM', 'SMMSyn-TS',
+    #        'DyS-TS', 'DySyn-TS',
+    #        'X', 'XSyn-TS',
+    #        'MAX', 'MAXSyn-TS',
+    #        'ACC', 'ACCSyn-TS',
+    #        'CC']
 
     results = []
 
     for mi in range(len(MFtr)):
         scores = MoSS(1000, 0.5, MFtr[mi])  # Implement MoSS function
+        # pdb.set_trace()
         TprFpr = np.array(getTPRandFPRbyThreshold(scores)).astype(float)  # Implement getTPRandFPRbyThreshold
 
         for k in range(len(var_size)):
             for i in range(len(var_perc)):
-                print(f"Class distr. {var_perc[i]}")
+                # print(f"Class distr. {var_perc[i]}")
                 for j in range(n_tests):
                     for ti in range(len(MF)):
                         for qi in qnt:
@@ -676,6 +793,8 @@ def exec_eval_complexity(MFtr):
                             measure = None
                             if len(qi.split("-")) > 1:
                                 measure = vdist.get(qi.split("-")[1])
+
+                            # pdb.set_trace()
                             qnt_re = apply_qntMethod(
                                 qntMethod=qntMethod,
                                 p_score=scores[scores[:, 2] == 1, 0],
@@ -693,14 +812,11 @@ def exec_eval_complexity(MFtr):
                                 MF[ti],
                                 freq_REAL.get(1, 0),
                                 freq_PRE,
-                                round(abs(freq_REAL.get(1, 0) - freq_PRE), 2),
+                                np.round(abs(freq_REAL.get(1, 0) - freq_PRE), 2),
                                 measure,
                                 qnt_re[1],
                                 qi
                             ])
-
-
-
 
 
     results_df = pd.DataFrame(results, columns=["MFtr", "MFte", "R_1", "P_1", "MAE", "Distance", "Value.dist", "Qnt"])
@@ -711,63 +827,30 @@ def exec_eval_complexity(MFtr):
 
 # ## RUN
 
-# In[ ]:
+# In[98]:
 
+
+import multiprocessing
+
+def worker(i):
+    print(f"Running for MF {i}")
+    result = exec_eval_complexity([i])  # Ensure this returns a DataFrame
+    
+    # Append results to CSV immediately after each execution
+    result.to_csv("results.csv", mode="a", header=False, index=False)
+
+    return result
 
 if __name__ == "__main__":
     m_Tr = np.arange(0.05, 1.00, 0.1)
     m_Tr = np.round(m_Tr, 2)
-    
+
     print("############ - It will take a couple of minutes! - ############")
-    result = pd.DataFrame()
 
+    # Write CSV headers before multiprocessing starts
+    pd.DataFrame(columns=["MFtr", "MFte", "R_1", "P_1", "MAE", "Distance", "Value.dist", "Qnt"]).to_csv("results.csv", index=False)
 
-    # re = exec_eval_complexity([0.7])
-    for i in m_Tr:
-        re = exec_eval_complexity([i])
-        result = pd.concat([result, re])
-        result.to_csv("results.csv", index=False)
+    with multiprocessing.Pool(processes=multiprocessing.cpu_count()) as pool:
+        pool.map(worker, m_Tr)  # Runs worker in parallel
 
-grouped = result.groupby(['Qnt', 'MFte', 'MFtr']).agg({'MAE': 'mean'}).reset_index()
-
-
-# ## Results
-
-# In[32]:
-
-
-import plotly.graph_objects as go
-import ipywidgets as widgets
-from IPython.display import display, clear_output
-
-
-mftr_dropdown = widgets.Dropdown(
-    options=grouped['MFtr'].unique(),
-    description='MFtr:'
-)
-
-mftr_dropdown.value = grouped['MFtr'].unique()[0]
-
-def update_plot(change):
-    selected_mftr = mftr_dropdown.value
-    filtered_data = grouped[grouped['MFtr'] == selected_mftr]
-
-    fig = go.Figure()
-    for qnt_val in filtered_data['Qnt'].unique():
-        qnt_data = filtered_data[filtered_data['Qnt'] == qnt_val]
-        fig.add_trace(go.Scatter(x=qnt_data['MFte'], y=qnt_data['MAE'], mode='lines+markers', name=qnt_val))
-
-    fig.update_layout(title=f'MAE vs MFte for MFtr = {selected_mftr}',
-                      xaxis_title='MFte',
-                      yaxis_title='MAE')
-
-    clear_output(wait=True)
-    display(fig)
-    display(mftr_dropdown)
-
-
-
-mftr_dropdown.observe(update_plot, names='value')
-display(mftr_dropdown)
-update_plot(None)
-
+    print("Processing complete. Results saved in 'results.csv'.")
