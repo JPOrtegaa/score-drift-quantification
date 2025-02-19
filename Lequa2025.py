@@ -806,6 +806,8 @@ def exec_eval_complexity(MFtr):
                             )  # Implement apply_qntMethod
 
                             freq_PRE = np.round(qnt_re[0],3)
+                            if qntMethod == "DySyn":
+                                freq_PRE = np.round(qnt_re[0],3)
 
                             results.append([
                                 MFtr[mi],
