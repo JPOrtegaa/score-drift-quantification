@@ -59,11 +59,11 @@ def DyS(p_score, n_score, test, measure="topsoe", bins=np.arange(2, 22, 2), err=
     return np.array([result, 1 - result])
 
 
-# In[33]:
+# In[ ]:
 
 
-def DySyn(ts, measure):
-    MF = np.arange(0.1, 1.0, 0.2) # mudar de 0.2 a 0.7
+def DySyn(ts, measure, MF=np.arange(0.1, 1.0, 0.2)):
+    # MF = np.arange(0.2, 0.7, 0.2) # mudar de 0.2 a 0.7
     MF = np.round(MF, 2)
 
     results = []
@@ -236,35 +236,35 @@ scrs = MoSS(2, 0.5, 0.0)
 scrs
 
 
-# In[8]:
+# In[21]:
 
 
-def apply_qntMethod(qntMethod, p_score, n_score, test, TprFpr=None, thr=None, measure="hellinger"):
+def apply_qntMethod(qntMethod, p_score, n_score, test, TprFpr=None, thr=None, measure="hellinger", MF_dysyn=np.arange(0.1, 1.0, 0.2)):
     import mlquantify  # Ensure the mlquantify package is available
     
     if qntMethod == "CC":
         return CC(test=test, thr=thr)
 
     if qntMethod == "ACCSyn":
-        return ACCSyn(ts=test, measure=measure)
+        return ACCSyn(ts=test, measure=measure, MF_dysyn=MF_dysyn)
 
     if qntMethod == "XSyn":
-        return XSyn(ts=test, measure=measure)
+        return XSyn(ts=test, measure=measure, MF_dysyn=MF_dysyn)
 
     if qntMethod == "MAXSyn":
-        return MAXSyn(ts=test, measure=measure)
+        return MAXSyn(ts=test, measure=measure, MF_dysyn=MF_dysyn)
 
     if qntMethod == "T50Syn":
-        return T50Syn(ts=test, measure=measure)
+        return T50Syn(ts=test, measure=measure, MF_dysyn=MF_dysyn)
 
     if qntMethod == "MSSyn":
-        return MSSyn(ts=test, measure=measure)
+        return MSSyn(ts=test, measure=measure, MF_dysyn=MF_dysyn)
 
     if qntMethod == "MS2Syn":
-        return MS2Syn(ts=test, measure=measure)
+        return MS2Syn(ts=test, measure=measure, MF_dysyn=MF_dysyn)
 
     if qntMethod == "SMMSyn":
-        return SMMSyn(ts=test, measure=measure)
+        return SMMSyn(ts=test, measure=measure, MF_dysyn=MF_dysyn)
 
     if qntMethod == "PCC":
         return mlquantify.PCC(test)
@@ -285,7 +285,7 @@ def apply_qntMethod(qntMethod, p_score, n_score, test, TprFpr=None, thr=None, me
         return mlquantify.methods.PACC(ts=test, TprFpr=TprFpr, thr=thr)
 
     if qntMethod == "DySyn":
-        return DySyn(ts=test, measure=measure)
+        return DySyn(ts=test, measure=measure, MF=MF_dysyn)
 
     if qntMethod == "HDy-LP":
         return mlquantify.HDy_LP(p_score=p_score, n_score=n_score, test=test)
@@ -311,11 +311,11 @@ def apply_qntMethod(qntMethod, p_score, n_score, test, TprFpr=None, thr=None, me
 
 # ### Proposal
 
-# In[32]:
+# In[9]:
 
 
-def ACCSyn(ts, measure):
-    rQnt = DySyn(ts, measure)
+def ACCSyn(ts, measure, MF_dysyn):
+    rQnt = DySyn(ts, measure, MF_dysyn)
     TprFpr = np.array(getTPRandFPRbyThreshold(MoSS(1000, 0.5, rQnt[2]))).astype(float)  # Implement getTPRandFPRbyThreshold
 
     dC = CC(ts)  # Implement CC function separately
@@ -332,7 +332,7 @@ def ACCSyn(ts, measure):
     return np.array([result, 1 - result], dtype=float)
 
 
-# In[31]:
+# In[10]:
 
 
 def X(ts, TprFpr):
@@ -352,8 +352,8 @@ def X(ts, TprFpr):
 
     return np.array([result, 1 - result], dtype=float)
 
-def XSyn(ts, measure):
-    rQnt = DySyn(ts, measure)
+def XSyn(ts, measure, MF_dysyn):
+    rQnt = DySyn(ts, measure, MF_dysyn)
     TprFpr = np.array(getTPRandFPRbyThreshold(MoSS(1000, 0.5, rQnt[2]))).astype(float)
     
     dC = CC(ts)  # Implement CC function separately
@@ -374,7 +374,7 @@ def XSyn(ts, measure):
     return np.array([result, 1 - result], dtype=float)
 
 
-# In[30]:
+# In[11]:
 
 
 def MAX(ts, TprFpr):
@@ -393,8 +393,8 @@ def MAX(ts, TprFpr):
 
     return np.array([result, 1 - result], dtype=float)
 
-def MAXSyn(ts, measure):
-    rQnt = DySyn(ts, measure)
+def MAXSyn(ts, measure, MF_dysyn):
+    rQnt = DySyn(ts, measure, MF_dysyn)
     TprFpr = np.array(getTPRandFPRbyThreshold(MoSS(1000, 0.5, rQnt[2]))).astype(float)
     
     dC = CC(ts)  # Implement CC function separately
@@ -413,7 +413,7 @@ def MAXSyn(ts, measure):
     return np.array([result, 1 - result], dtype=float)
 
 
-# In[29]:
+# In[12]:
 
 
 def T50(ts, TprFpr):
@@ -432,8 +432,8 @@ def T50(ts, TprFpr):
 
     return np.array([result, 1 - result], dtype=float)
 
-def T50Syn(ts, measure):
-    rQnt = DySyn(ts, measure)
+def T50Syn(ts, measure, MF_dysyn):
+    rQnt = DySyn(ts, measure, MF_dysyn)
     TprFpr = np.array(getTPRandFPRbyThreshold(MoSS(1000, 0.5, rQnt[2]))).astype(float)
 
     dC = CC(ts)  # Implement CC function separately
@@ -455,7 +455,7 @@ def T50Syn(ts, measure):
 # In[13]:
 
 
-# x=MoSS(500, 0.5, 0.8)
+# x=MoSS(500, 0.5, 0.6)
 # x = pd.DataFrame(x)
 # x.columns = ['x', 'y', 'col1']
 # x
@@ -527,13 +527,13 @@ def MS2(ts, TprFpr):
     return np.array([result, 1 - result], dtype=float)
 
 
-# In[28]:
+# In[15]:
 
 
-def MSSyn(ts, measure):
+def MSSyn(ts, measure, MF_dysyn):
     results = []
 
-    rQnt = DySyn(ts, measure)
+    rQnt = DySyn(ts, measure, MF_dysyn)
     TprFpr = np.array(getTPRandFPRbyThreshold(MoSS(1000, 0.5, rQnt[2]))).astype(float)
 
     dC = CC(ts)  # Implement CC function separately
@@ -554,13 +554,13 @@ def MSSyn(ts, measure):
     return np.array([result, 1 - result], dtype=float)
 
 
-# In[27]:
+# In[16]:
 
 
-def MS2Syn(ts, measure):
+def MS2Syn(ts, measure, MF_dysyn):
     results = []
 
-    rQnt = DySyn(ts, measure)
+    rQnt = DySyn(ts, measure, MF_dysyn)
     TprFpr = np.array(getTPRandFPRbyThreshold(MoSS(1000, 0.5, rQnt[2]))).astype(float)
     
     dC = CC(ts)  # Implement CC function separately
@@ -599,11 +599,11 @@ def SMM(p_scores, n_scores, t_scores):
   return np.round([alpha, abs(1-alpha)], 2)
 
 
-# In[26]:
+# In[18]:
 
 
-def SMMSyn(ts, measure):
-    rQnt = DySyn(ts, measure)
+def SMMSyn(ts, measure, MF_dysyn):
+    rQnt = DySyn(ts, measure, MF_dysyn)
     best_scores = MoSS(1000, 0.5, rQnt[2]) # sempre NaN em 0 de distances
 
     best_p = best_scores[best_scores[:, 2] == 1, 0]
@@ -618,7 +618,7 @@ def SMMSyn(ts, measure):
 # In[19]:
 
 
-def exec_eval_complexity(MFtr):
+def exec_eval_complexity(MFtr, MF_dysyn):
 
     vdist = {"TS": "topsoe", "JD": "jensen_difference", "PS": "prob_symm", "ORD": "ord", "SORD": "sord", "TN": "taneja", "HD": "hellinger"}
 
@@ -689,7 +689,8 @@ def exec_eval_complexity(MFtr):
                                 test=test_set[:, 0],
                                 TprFpr=TprFpr,
                                 thr=0.5,
-                                measure=measure
+                                measure=measure,
+                                MF_dysyn=MF_dysyn,
                             )  # Implement apply_qntMethod
 
                             freq_PRE = np.round(qnt_re[0],3)
@@ -702,18 +703,19 @@ def exec_eval_complexity(MFtr):
                                 np.round(abs(freq_REAL.get(1, 0) - freq_PRE), 2),
                                 measure,
                                 qnt_re[1],
-                                qi
+                                qi,
+                                MF_dysyn
                             ])
 
 
-    results_df = pd.DataFrame(results, columns=["MFtr", "MFte", "R_1", "P_1", "AE", "Distance", "Value.dist", "Qnt"]) # Before AE was MAE, keep in mind!
+    results_df = pd.DataFrame(results, columns=["MFtr", "MFte", "R_1", "P_1", "AE", "Distance", "Value.dist", "Qnt", "MF_dysyn"]) # Before AE was MAE, keep in mind!
 
     return results_df
 
 
 # ## RUN
 
-# In[20]:
+# In[26]:
 
 import multiprocessing
 
@@ -729,13 +731,28 @@ def worker(i):
 if __name__ == "__main__":
     m_Tr = np.arange(0.05, 1.00, 0.1)
     m_Tr = np.round(m_Tr, 2)
+    
+    MF_1 = np.arange(0.2, 0.7, 0.2)
+    MF_1 = np.round(MF_1, 2)
+
+    MF_2 = np.arange(0.2, 0.7, 0.1)
+    MF_2 = np.round(MF_2, 2)
+
+    MF_3 = np.arange(0.2, 0.7, 0.05)
+    MF_3 = np.round(MF_3, 2)
+
+    MF_4 = np.arange(0.2, 0.7, 0.01)
+    MF_4 = np.round(MF_4, 2)
+
+    MF_dysyn = [MF_1, MF_2, MF_3, MF_4]
 
     print("############ - It will take a couple of minutes! - ############")
-
     # Write CSV headers before multiprocessing starts
-    pd.DataFrame(columns=["MFtr", "MFte", "R_1", "P_1", "MAE", "Distance", "Value.dist", "Qnt"]).to_csv("results.csv", index=False)
+    pd.DataFrame(columns=["MFtr", "MFte", "R_1", "P_1", "MAE", "Distance", "Value.dist", "Qnt", "MF_dysyn"]).to_csv("results.csv", index=False)
 
-    with multiprocessing.Pool(processes=multiprocessing.cpu_count()) as pool:
-        pool.map(worker, m_Tr)  # Runs worker in parallel
+    for MF in MF_dysyn:
+        print(f"Running for MF_dysyn {MF}")
+        with multiprocessing.Pool(processes=multiprocessing.cpu_count()) as pool:
+            pool.map(worker, m_Tr)  # Runs worker in parallel
 
     print("Processing complete. Results saved in 'results.csv'.")
