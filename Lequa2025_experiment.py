@@ -59,13 +59,11 @@ def DyS(p_score, n_score, test, measure="topsoe", bins=np.arange(2, 22, 2), err=
     return np.array([result, 1 - result])
 
 
-# In[33]:
+# In[3]:
 
 
 def DySyn(ts, measure):
-    MF = np.arange(0.1, 1.0, 0.2) # mudar de 0.2 a 0.7
-    MF = np.round(MF, 2)
-
+    MF = np.arange(0.1, 1.0, 0.2)
     results = []
     distances = []
 
@@ -77,13 +75,13 @@ def DySyn(ts, measure):
         if measure == "sord":
             rQnt = DySyn_SORD(test_p, test_n, ts)  # Implement DySyn_SORD separately
         else:
-            rQnt = DySyn_DyS(test_p, test_n, ts, measure, [10])  # Implement DySyn_DyS separately
+            rQnt = DySyn_DyS(test_p, test_n, ts, measure)  # Implement DySyn_DyS separately
 
         distances.append(rQnt[1])
         results.append(rQnt[0][0])
 
     best_result = round(results[np.argmin(distances)], 2)
-    return [np.array([best_result, 1 - best_result]), min(distances), MF[np.argmin(distances)]]
+    return [np.array([best_result, 1 - best_result]), min(distances)]
 
 def DySyn_DyS(p_score, n_score, test, measure="hellinger", b_sizes = list(range(2, 21, 2)) + [30]):
     results = []
@@ -218,7 +216,7 @@ def TernarySearch(left, right, f, eps=1e-4):
             right = rightThird
 
 
-# In[6]:
+# In[49]:
 
 
 def MoSS(n, alpha, m):
@@ -236,7 +234,7 @@ scrs = MoSS(2, 0.5, 0.0)
 scrs
 
 
-# In[8]:
+# In[74]:
 
 
 def apply_qntMethod(qntMethod, p_score, n_score, test, TprFpr=None, thr=None, measure="hellinger"):
@@ -311,12 +309,24 @@ def apply_qntMethod(qntMethod, p_score, n_score, test, TprFpr=None, thr=None, me
 
 # ### Proposal
 
-# In[32]:
+# In[9]:
 
 
 def ACCSyn(ts, measure):
-    rQnt = DySyn(ts, measure)
-    TprFpr = np.array(getTPRandFPRbyThreshold(MoSS(1000, 0.5, rQnt[2]))).astype(float)  # Implement getTPRandFPRbyThreshold
+    MF = np.arange(0.05, 1.0, 0.01)
+    results = []
+    distances = []
+
+    for mf in MF:
+        scores = MoSS(500, 0.5, mf)  # Implement MoSS function separately
+        test_p = scores[scores[:, 2] == 1, 0]
+        test_n = scores[scores[:, 2] == 2, 0]
+
+        rQnt = DySyn_DyS(test_p, test_n, ts, measure, [10])  # Implement DySyn_DyS separately
+
+        distances.append(np.round(rQnt[1],3))
+
+    TprFpr = np.array(getTPRandFPRbyThreshold(MoSS(1000, 0.5, MF[np.argmin(distances)]))).astype(float)  # Implement getTPRandFPRbyThreshold
 
     dC = CC(ts)  # Implement CC function separately
 
@@ -332,7 +342,7 @@ def ACCSyn(ts, measure):
     return np.array([result, 1 - result], dtype=float)
 
 
-# In[31]:
+# In[52]:
 
 
 def X(ts, TprFpr):
@@ -353,9 +363,22 @@ def X(ts, TprFpr):
     return np.array([result, 1 - result], dtype=float)
 
 def XSyn(ts, measure):
-    rQnt = DySyn(ts, measure)
-    TprFpr = np.array(getTPRandFPRbyThreshold(MoSS(1000, 0.5, rQnt[2]))).astype(float)
-    
+    MF = np.arange(0.05, 1.0, 0.01)
+    results = []
+    distances = []
+
+    # Synthetic scores generation
+    for mf in MF:
+      scores = MoSS(500, 0.5, mf)  # Implement MoSS function separately
+      test_p = scores[scores[:, 2] == 1, 0]
+      test_n = scores[scores[:, 2] == 2, 0]
+
+      rQnt = DySyn_DyS(test_p, test_n, ts, measure, [10])  # Implement DySyn_DyS separately
+
+      distances.append(np.round(rQnt[1],3))
+
+    # Generate TPR and FPR by the min distance in MF
+    TprFpr = np.array(getTPRandFPRbyThreshold(MoSS(1000, 0.5, MF[np.argmin(distances)]))).astype(float)  # Implement getTPRandFPRbyThreshold
     dC = CC(ts)  # Implement CC function separately
 
     # Usual X implementation
@@ -374,7 +397,7 @@ def XSyn(ts, measure):
     return np.array([result, 1 - result], dtype=float)
 
 
-# In[30]:
+# In[53]:
 
 
 def MAX(ts, TprFpr):
@@ -394,9 +417,22 @@ def MAX(ts, TprFpr):
     return np.array([result, 1 - result], dtype=float)
 
 def MAXSyn(ts, measure):
-    rQnt = DySyn(ts, measure)
-    TprFpr = np.array(getTPRandFPRbyThreshold(MoSS(1000, 0.5, rQnt[2]))).astype(float)
-    
+    MF = np.arange(0.05, 1.0, 0.01)
+    results = []
+    distances = []
+
+    # Synthetic scores generation
+    for mf in MF:
+      scores = MoSS(500, 0.5, mf)  # Implement MoSS function separately
+      test_p = scores[scores[:, 2] == 1, 0]
+      test_n = scores[scores[:, 2] == 2, 0]
+
+      rQnt = DySyn_DyS(test_p, test_n, ts, measure, [10])  # Implement DySyn_DyS separately
+
+      distances.append(np.round(rQnt[1],3))
+
+    # Generate TPR and FPR by the min distance in MF
+    TprFpr = np.array(getTPRandFPRbyThreshold(MoSS(1000, 0.5, MF[np.argmin(distances)]))).astype(float)  # Implement getTPRandFPRbyThreshold
     dC = CC(ts)  # Implement CC function separately
 
     # Usual MAX implementation
@@ -413,7 +449,7 @@ def MAXSyn(ts, measure):
     return np.array([result, 1 - result], dtype=float)
 
 
-# In[29]:
+# In[54]:
 
 
 def T50(ts, TprFpr):
@@ -433,9 +469,22 @@ def T50(ts, TprFpr):
     return np.array([result, 1 - result], dtype=float)
 
 def T50Syn(ts, measure):
-    rQnt = DySyn(ts, measure)
-    TprFpr = np.array(getTPRandFPRbyThreshold(MoSS(1000, 0.5, rQnt[2]))).astype(float)
+    MF = np.arange(0.05, 1.0, 0.01)
+    results = []
+    distances = []
 
+    # Synthetic scores generation
+    for mf in MF:
+      scores = MoSS(500, 0.5, mf)  # Implement MoSS function separately
+      test_p = scores[scores[:, 2] == 1, 0]
+      test_n = scores[scores[:, 2] == 2, 0]
+
+      rQnt = DySyn_DyS(test_p, test_n, ts, measure, [10])  # Implement DySyn_DyS separately
+
+      distances.append(np.round(rQnt[1],3))
+
+    # Generate TPR and FPR by the min distance in MF
+    TprFpr = np.array(getTPRandFPRbyThreshold(MoSS(1000, 0.5, MF[np.argmin(distances)]))).astype(float)  # Implement getTPRandFPRbyThreshold
     dC = CC(ts)  # Implement CC function separately
 
     # Usual T50 implementation
@@ -455,7 +504,7 @@ def T50Syn(ts, measure):
 # In[13]:
 
 
-# x=MoSS(500, 0.5, 0.8)
+# x=MoSS(500, 0.2, 0.2)
 # x = pd.DataFrame(x)
 # x.columns = ['x', 'y', 'col1']
 # x
@@ -480,7 +529,7 @@ def T50Syn(ts, measure):
 # plt.show()
 
 
-# In[14]:
+# In[70]:
 
 
 def MS(ts, TprFpr):
@@ -527,15 +576,26 @@ def MS2(ts, TprFpr):
     return np.array([result, 1 - result], dtype=float)
 
 
-# In[28]:
+# In[15]:
 
 
 def MSSyn(ts, measure):
+    MF = np.arange(0.05, 1.0, 0.01)
     results = []
+    distances = []
 
-    rQnt = DySyn(ts, measure)
-    TprFpr = np.array(getTPRandFPRbyThreshold(MoSS(1000, 0.5, rQnt[2]))).astype(float)
+    # Synthetic scores generation
+    for mf in MF:
+      scores = MoSS(500, 0.5, mf)  # Implement MoSS function separately
+      test_p = scores[scores[:, 2] == 1, 0]
+      test_n = scores[scores[:, 2] == 2, 0]
 
+      rQnt = DySyn_DyS(test_p, test_n, ts, measure, [10])  # Implement DySyn_DyS separately
+
+      distances.append(np.round(rQnt[1],3))
+
+    # Generate TPR and FPR by the min distance in MF
+    TprFpr = np.array(getTPRandFPRbyThreshold(MoSS(1000, 0.5, MF[np.argmin(distances)]))).astype(float)  # Implement getTPRandFPRbyThreshold
     dC = CC(ts)  # Implement CC function separately
 
     # Usual MS implementation
@@ -554,15 +614,26 @@ def MSSyn(ts, measure):
     return np.array([result, 1 - result], dtype=float)
 
 
-# In[27]:
+# In[16]:
 
 
 def MS2Syn(ts, measure):
+    MF = np.arange(0.05, 1.0, 0.01)
     results = []
+    distances = []
 
-    rQnt = DySyn(ts, measure)
-    TprFpr = np.array(getTPRandFPRbyThreshold(MoSS(1000, 0.5, rQnt[2]))).astype(float)
-    
+    # Synthetic scores generation
+    for mf in MF:
+      scores = MoSS(500, 0.5, mf)  # Implement MoSS function separately
+      test_p = scores[scores[:, 2] == 1, 0]
+      test_n = scores[scores[:, 2] == 2, 0]
+
+      rQnt = DySyn_DyS(test_p, test_n, ts, measure, [10])  # Implement DySyn_DyS separately
+
+      distances.append(np.round(rQnt[1],3))
+
+    # Generate TPR and FPR by the min distance in MF
+    TprFpr = np.array(getTPRandFPRbyThreshold(MoSS(1000, 0.5, MF[np.argmin(distances)]))).astype(float)  # Implement getTPRandFPRbyThreshold
     dC = CC(ts)  # Implement CC function separately
 
     # Usual MS2 implementation
@@ -599,13 +670,24 @@ def SMM(p_scores, n_scores, t_scores):
   return np.round([alpha, abs(1-alpha)], 2)
 
 
-# In[26]:
+# In[18]:
 
 
 def SMMSyn(ts, measure):
-    rQnt = DySyn(ts, measure)
-    best_scores = MoSS(1000, 0.5, rQnt[2]) # sempre NaN em 0 de distances
+    MF = np.arange(0.05, 1.0, 0.01)
+    distances = [] # distances generated from DySyn
 
+    # Synthetic scores generation
+    for mf in MF:
+      scores = MoSS(500, 0.5, mf)  # Implement MoSS function separately
+      test_p = scores[scores[:, 2] == 1, 0]
+      test_n = scores[scores[:, 2] == 2, 0]
+
+      rQnt = DySyn_DyS(test_p, test_n, ts, measure, [10])
+      distances.append(np.round(rQnt[1],3))
+
+    # pdb.set_trace()
+    best_scores = MoSS(1000, 0.5, MF[np.argmin(distances)]) # sempre NaN em 0 de distances
     best_p = best_scores[best_scores[:, 2] == 1, 0]
     best_n = best_scores[best_scores[:, 2] == 2, 0]
     result = SMM(best_p, best_n, ts)
@@ -615,40 +697,74 @@ def SMMSyn(ts, measure):
 
 # ## Main
 
-# In[19]:
+# In[97]:
 
 
 def exec_eval_complexity(MFtr):
 
+    # if not os.path.exists("./synthetic/"):
+    #     os.makedirs("./synthetic/")
+
     vdist = {"TS": "topsoe", "JD": "jensen_difference", "PS": "prob_symm", "ORD": "ord", "SORD": "sord", "TN": "taneja", "HD": "hellinger"}
 
-    var_perc = np.arange(0, 1.05, 0.05)  # class distribution
+    var_perc = np.arange(0, 1.05, 0.05)  # positive class distribution MUDAR PARA 0.05!!
     var_size = [500]  # test set size
-    n_tests = 10  # replication
+    n_tests = 3  # replication
     MF = np.arange(0.05, 1.00, 0.1)  # m parameter for MoSS model
-    MF = np.round(MF, 2) # 0.1500000003 shenanigans
+    # qnt = ['MS', 'MSSyn-HD', 'MS2Syn-HD', 'SMM', 'SMMSyn-HD']
+
+    # qnt = ['ACC', 'ACCSyn-HD', 'ACCSyn-TS', 'ACCSyn-JD', 'ACCSyn-PS', 'ACCSyn-ORD', 'ACCSyn-SORD', 'ACCSyn-TN',
+    #        'X', 'XSyn-HD', 'XSyn-TS', 'XSyn-JD', 'XSyn-PS', 'XSyn-ORD', 'XSyn-SORD', 'XSyn-TN',
+    #        'MAX', 'MAXSyn-HD', 'MAXSyn-TS', 'MAXSyn-JD', 'MAXSyn-PS', 'MAXSyn-ORD', 'MAXSyn-SORD', 'MAXSyn-TN',
+    #        'T50', 'T50Syn-HD', 'T50Syn-TS', 'T50Syn-JD', 'T50Syn-PS', 'T50Syn-ORD', 'T50Syn-SORD', 'T50Syn-TN',
+    #        'MS', 'MSSyn-HD', 'MSSyn-TS', 'MSSyn-JD', 'MSSyn-PS', 'MSSyn-ORD', 'MSSyn-SORD', 'MSSyn-TN',
+    #        'MS2', 'MS2Syn-HD', 'MS2Syn-TS', 'MS2Syn-JD', 'MS2Syn-PS', 'MS2Syn-ORD', 'MS2Syn-SORD', 'MS2Syn-TN',
+    #        'SMM', 'SMMSyn-HD', 'SMMSyn-TS', 'SMMSyn-JD', 'SMMSyn-PS', 'SMMSyn-ORD', 'SMMSyn-SORD', 'SMMSyn-TN',
+    #        'DyS', 'DySyn-HD', 'DySyn-TS', 'DySyn-JD', 'DySyn-PS', 'DySyn-ORD', 'DySyn-SORD', 'DySyn-TN',
+    #        'CC']
+
+    # qnt = ['ACC', 'ACCSyn-HD', 'ACCSyn-TS', 'ACCSyn-JD', 'ACCSyn-PS', 'ACCSyn-ORD', 'ACCSyn-TN',
+    #        'X', 'XSyn-HD', 'XSyn-TS', 'XSyn-JD', 'XSyn-PS', 'XSyn-ORD', 'XSyn-TN',
+    #        'MAX', 'MAXSyn-HD', 'MAXSyn-TS', 'MAXSyn-JD', 'MAXSyn-PS', 'MAXSyn-ORD', 'MAXSyn-TN',
+    #        'T50', 'T50Syn-HD', 'T50Syn-TS', 'T50Syn-JD', 'T50Syn-PS', 'T50Syn-ORD', 'T50Syn-TN',
+    #        'MS', 'MSSyn-HD', 'MSSyn-TS', 'MSSyn-JD', 'MSSyn-PS', 'MSSyn-ORD', 'MSSyn-TN',
+    #        'MS2', 'MS2Syn-HD', 'MS2Syn-TS', 'MS2Syn-JD', 'MS2Syn-PS', 'MS2Syn-ORD', 'MS2Syn-TN',
+    #        'SMM', 'SMMSyn-HD', 'SMMSyn-TS', 'SMMSyn-JD', 'SMMSyn-PS', 'SMMSyn-ORD', 'SMMSyn-TN',
+    #        'DyS', 'DySyn-HD', 'DySyn-TS', 'DySyn-JD', 'DySyn-PS', 'DySyn-ORD', 'DySyn-TN',
+    #        'CC']
+    
+    # qnt = ['ACCSyn-HD', 'ACCSyn-TS', 'ACCSyn-JD', 'ACCSyn-PS', 'ACCSyn-ORD', 'ACCSyn-TN',
+    #     'XSyn-HD', 'XSyn-TS', 'XSyn-JD', 'XSyn-PS', 'XSyn-ORD', 'XSyn-TN',
+    #     'MAXSyn-HD', 'MAXSyn-TS', 'MAXSyn-JD', 'MAXSyn-PS', 'MAXSyn-ORD', 'MAXSyn-TN',
+    #     'T50Syn-HD', 'T50Syn-TS', 'T50Syn-JD', 'T50Syn-PS', 'T50Syn-ORD', 'T50Syn-TN',
+    #     'MSSyn-HD', 'MSSyn-TS', 'MSSyn-JD', 'MSSyn-PS', 'MSSyn-ORD', 'MSSyn-TN',
+    #     'MS2Syn-HD', 'MS2Syn-TS', 'MS2Syn-JD', 'MS2Syn-PS', 'MS2Syn-ORD', 'MS2Syn-TN',
+    #     'SMMSyn-HD', 'SMMSyn-TS', 'SMMSyn-JD', 'SMMSyn-PS', 'SMMSyn-ORD', 'SMMSyn-TN',
+    #     'DySyn-HD', 'DySyn-TS', 'DySyn-JD', 'DySyn-PS', 'DySyn-ORD', 'DySyn-TN',
+    #     'CC']
+
 
     # PC RAFAEL
-    # qnt = ['ACCSyn-TS', 'ACC',
-    #     #    'XSyn-TS',
-    #     #    'MAXSyn-TS',
-    #     #    'T50Syn-TS',
-    #     #    'MS2Syn-TS',
-    #     #    'SMMSyn-TS',
+    # qnt = ['ACCSyn-TS',
+    #        'XSyn-TS',
+    #        'MAXSyn-TS',
+    #        'T50Syn-TS',
+    #        'MS2Syn-TS',
+    #        'SMMSyn-TS',
     #        'DySyn-TS']
 
     # PC LUIZ
-    # qnt = ['T50', 'MS', 'MS2', 'SMM', 'DyS-TS', 'X', 'MAX', 'ACC', 'CC']
+    qnt = ['T50', 'MS2', 'SMM', 'DyS-TS', 'X', 'MAX', 'ACC', 'CC']
 
-    qnt = ['T50', 'T50Syn-TS',
-           'MS', 'MSSyn-TS',
-           'MS2', 'MS2Syn-TS',
-           'SMM', 'SMMSyn-TS',
-           'DyS-TS', 'DySyn-TS',
-           'X', 'XSyn-TS',
-           'MAX', 'MAXSyn-TS',
-           'ACC', 'ACCSyn-TS',
-           'CC']
+    # qnt = ['T50', 'T50Syn-TS',
+    #        'MS', 'MSSyn-TS',
+    #        'MS2', 'MS2Syn-TS',
+    #        'SMM', 'SMMSyn-TS',
+    #        'DyS-TS', 'DySyn-TS',
+    #        'X', 'XSyn-TS',
+    #        'MAX', 'MAXSyn-TS',
+    #        'ACC', 'ACCSyn-TS',
+    #        'CC']
 
     results = []
 
@@ -663,9 +779,6 @@ def exec_eval_complexity(MFtr):
                 for j in range(n_tests):
                     for ti in range(len(MF)):
                         for qi in qnt:
-
-                            # pdb.set_trace()
-
                             test_set = MoSS(var_size[k], var_perc[i], MF[ti])
                             freq_REAL = pd.Series(test_set[:, 2]).value_counts(normalize=True).reindex([1, 2], fill_value=0)
                             qntMethod = qi.split("-")[0] if "-" in qi else qi
@@ -693,6 +806,8 @@ def exec_eval_complexity(MFtr):
                             )  # Implement apply_qntMethod
 
                             freq_PRE = np.round(qnt_re[0],3)
+                            if qntMethod == "DySyn":
+                                freq_PRE = np.round(qnt_re[0],3)
 
                             results.append([
                                 MFtr[mi],
@@ -706,14 +821,16 @@ def exec_eval_complexity(MFtr):
                             ])
 
 
-    results_df = pd.DataFrame(results, columns=["MFtr", "MFte", "R_1", "P_1", "AE", "Distance", "Value.dist", "Qnt"]) # Before AE was MAE, keep in mind!
+    results_df = pd.DataFrame(results, columns=["MFtr", "MFte", "R_1", "P_1", "MAE", "Distance", "Value.dist", "Qnt"])
+    # results_df.to_csv(f"./synthetic/scorer_complexity_syn_{MFtr}.csv", index=False)
 
     return results_df
 
 
 # ## RUN
 
-# In[20]:
+# In[98]:
+
 
 import multiprocessing
 
