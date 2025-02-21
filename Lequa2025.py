@@ -618,7 +618,7 @@ def SMMSyn(ts, measure, MF_dysyn):
 # In[19]:
 
 
-def exec_eval_complexity(MFtr, MF_dysyn):
+def exec_eval_complexity(MFtr, MF_dysyn, inc):
 
     vdist = {"TS": "topsoe", "JD": "jensen_difference", "PS": "prob_symm", "ORD": "ord", "SORD": "sord", "TN": "taneja", "HD": "hellinger"}
 
@@ -704,7 +704,7 @@ def exec_eval_complexity(MFtr, MF_dysyn):
                                 measure,
                                 qnt_re[1],
                                 qi,
-                                MF_dysyn
+                                inc
                             ])
 
 
@@ -720,39 +720,29 @@ def exec_eval_complexity(MFtr, MF_dysyn):
 import multiprocessing
 
 def worker(i):
-    print(f"Running for MF {i}")
-    result = exec_eval_complexity([i])  # Ensure this returns a DataFrame
-    
-    # Append results to CSV immediately after each execution
-    result.to_csv("results.csv", mode="a", header=False, index=False)
+
+    increment = [0.2, 0.1, 0.05, 0.01]
+
+    for inc in increment:
+        MF = np.arange(0.2, 0.7, inc)
+        MF = np.round(MF, 2)
+
+        print(f"Running for MF {i}, increment {inc}")
+        result = exec_eval_complexity([i], MF, inc)  # Ensure this returns a DataFrame
+        # Append results to CSV immediately after each execution
+        result.to_csv("results.csv", mode="a", header=False, index=False)
 
     return result
 
 if __name__ == "__main__":
     m_Tr = np.arange(0.05, 1.00, 0.1)
     m_Tr = np.round(m_Tr, 2)
-    
-    MF_1 = np.arange(0.2, 0.7, 0.2)
-    MF_1 = np.round(MF_1, 2)
-
-    MF_2 = np.arange(0.2, 0.7, 0.1)
-    MF_2 = np.round(MF_2, 2)
-
-    MF_3 = np.arange(0.2, 0.7, 0.05)
-    MF_3 = np.round(MF_3, 2)
-
-    MF_4 = np.arange(0.2, 0.7, 0.01)
-    MF_4 = np.round(MF_4, 2)
-
-    MF_dysyn = [MF_1, MF_2, MF_3, MF_4]
 
     print("############ - It will take a couple of minutes! - ############")
     # Write CSV headers before multiprocessing starts
     pd.DataFrame(columns=["MFtr", "MFte", "R_1", "P_1", "MAE", "Distance", "Value.dist", "Qnt", "MF_dysyn"]).to_csv("results.csv", index=False)
 
-    for MF in MF_dysyn:
-        print(f"Running for MF_dysyn {MF}")
-        with multiprocessing.Pool(processes=multiprocessing.cpu_count()) as pool:
-            pool.map(worker, m_Tr)  # Runs worker in parallel
+    with multiprocessing.Pool(processes=multiprocessing.cpu_count()) as pool:
+        pool.map(worker, m_Tr)  # Runs worker in parallel
 
     print("Processing complete. Results saved in 'results.csv'.")
