@@ -102,76 +102,65 @@ dataset_path = "datasets/Nursery.csv"
 df = pd.read_csv(dataset_path)
 df = preprocessing_dataset(df)
 
-def running_esperiment(search_df):
-    results = pd.DataFrame()
+from multiprocessing import Pool, cpu_count
 
-    rows = [row for _, row in search_df.iterrows()]
-
-    for row in tqdm(rows, desc="Running Experiment"):
+def process_row(row):
+    try:
         pos_class = eval(row['Positive'])
         neg_class = eval(row['Negative'])
         easy_class = eval(row['Easy'])
         hard_class = eval(row['Hard'])
 
         # Create DataFrames for each scenario
-        df_pos_neg = df
-        df_pos_neg = df_pos_neg[df_pos_neg['class'].isin(pos_class + neg_class)]
+        df_pos_neg = df[df['class'].isin(pos_class + neg_class)].copy()
         df_pos_neg.loc[:, 'class'] = df_pos_neg['class'].apply(lambda x: 'P' if x in pos_class else 'N')
         auc = generate_prediction(df_pos_neg)
-        # print(df_pos_neg.shape[0])
 
-        df_pos_easy = df
-        df_pos_easy = df_pos_easy[df_pos_easy['class'].isin(pos_class + easy_class)]
+        df_pos_easy = df[df['class'].isin(pos_class + easy_class)].copy()
         df_pos_easy.loc[:, 'class'] = df_pos_easy['class'].apply(lambda x: 'P' if x in pos_class else 'N')
         auc_easy = generate_prediction(df_pos_easy)
-        # print(df_pos_easy.shape[0])
 
-        df_pos_hard = df
-        df_pos_hard = df_pos_hard[df_pos_hard['class'].isin(pos_class + hard_class)]
+        df_pos_hard = df[df['class'].isin(pos_class + hard_class)].copy()
         df_pos_hard.loc[:, 'class'] = df_pos_hard['class'].apply(lambda x: 'P' if x in pos_class else 'N')
         auc_hard = generate_prediction(df_pos_hard)
-        # print(df_pos_hard.shape[0])
 
-        # Wrap scalar values in lists to match the length of other arrays
-        result = pd.DataFrame({
-            'Positive': [pos_class],
-            'Negative': [neg_class],
-            'Easy': [easy_class],
-            'Hard': [hard_class],
+        # Return the results as a dictionary
+        return {
+            'Positive': pos_class,
+            'Negative': neg_class,
+            'Easy': easy_class,
+            'Hard': hard_class,
             'AUC': auc,
             'AUC_Easy': auc_easy,
             'AUC_Hard': auc_hard
-        })
+        }
+    except Exception as e:
+        print(f"Error processing row: {row}")
+        print(f"Exception: {e}")
+        return None
 
-        results = pd.concat([results, result], ignore_index=True)
+def running_esperiment_parallel(search_df):
+    rows = [row for _, row in search_df.iterrows()]
 
-    return results
+    # Use multiprocessing to process rows in parallel
+    num_cores = cpu_count()
+    with Pool(num_cores) as pool:
+        results = list(tqdm(pool.imap(process_row, rows), total=len(rows), desc="Running Experiment"))
+
+    # Filter out None results (in case of errors)
+    results = [res for res in results if res is not None]
+
+    # Convert the results to a DataFrame
+    results_df = pd.DataFrame(results)
+    return results_df
 
 if __name__ == '__main__':
     # Load the search results
     search_results_path = "search_results.csv"
     search_results = pd.read_csv(search_results_path)
 
-    results_df = running_esperiment(search_results)
-
-    # pdb.set_trace()
-
-    # Use multiprocessing to process rows in parallel
-    # num_cores = cpu_count()
-
-    # rows = [row for _, row in search_results.iterrows()]
-    # pdb.set_trace()
-
-    # process_row(rows[0])
-
-    # with Pool(num_cores) as pool:
-    #     # Wrap the iterrows with tqdm for progress tracking
-    #     results = pool.map(process_row, tqdm([row for _, row in search_results.iterrows()][0], 
-    #                                          total=len(search_results), 
-    #                                          desc="Processing Rows"))
-
-    # # Convert results to a DataFrame
-    # results_df = pd.DataFrame(results)
+    # Run the experiment in parallel
+    results_df = running_esperiment_parallel(search_results)
 
     # Save the results to a new CSV file
     results_df.to_csv("processed_results.csv", index=False)
