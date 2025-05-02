@@ -13,26 +13,44 @@ from sklearn.metrics import roc_auc_score
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
 import pdb
-import argparse
 
-# Parse command-line arguments
-parser = argparse.ArgumentParser(description="Script for generating groups.")
-parser.add_argument("-d", "--dataset", type=str, required=True, help="File name for the dataset")
-args = parser.parse_args()
-
-dataset_name = args.dataset
-dataset = "./datasets/" + dataset_name + ".csv"
-
+dataset = "datasets/Nursery.csv"
 def print_bad_lines(line):
     print(f"Bad line: {line}")
 
 df = pd.read_csv(dataset, on_bad_lines=print_bad_lines, engine='python')
 
+# Define the categories with the desired order
+categories = [
+    ['usual', 'pretentious', 'great_pret'],  # parents
+    ['proper', 'less_proper', 'improper', 'critical', 'very_crit'],  # has_nurs
+    ['complete', 'completed', 'incomplete', 'foster'],  # form
+    ['1', '2', '3', 'more'],  # children
+    ['convenient', 'less_conv', 'critical'],  # housing
+    ['convenient', 'inconv'],  # finance
+    ['nonprob', 'slightly_prob', 'problematic'],  # social
+    ['recommended', 'priority', 'not_recom']  # health
+]
+
+# Initialize the OrdinalEncoder with the specified categories
+ordinal_encoder = OrdinalEncoder(categories=categories)
+
+classes = df.pop('class')
+columns = df.columns
+
+# Fit and transform the data
+df = ordinal_encoder.fit_transform(df)
+
+# Convert the result back to a DataFrame for better readability
+df = pd.DataFrame(df, columns=columns)
+df['class'] = classes
+df = df[df['class'] != 'recommend']  # Remove rows where class is 'recommend'
+
 # random.seed(45)
 search_df = pd.DataFrame(columns=['Positive', 'Negative', 'Easy', 'Hard'])
-search_df.to_csv("search_results_" + dataset_name + ".csv", index=False)
+search_df.to_csv("search_results.csv", index=False)
 
-df.rename(columns={'Class': 'class'}, inplace=True)
+df = df[df['class'] != 'recommend']
 
 n_classes = len(df['class'].unique())
 
@@ -73,4 +91,4 @@ for i in tqdm(range(50), desc="Total Classes"):
                       'Easy': easy_class, 'Hard': hard_class}
             search_df = pd.concat([search_df, pd.DataFrame([result])], ignore_index=True)
 
-    search_df.to_csv("search_results_" + dataset_name + ".csv", index=False)
+    search_df.to_csv("search_results.csv", index=False)
