@@ -8,10 +8,10 @@ from scipy.stats import gaussian_kde
 from tqdm import tqdm
 
 from sklearn.preprocessing import OrdinalEncoder
+from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import roc_auc_score
 from sklearn.linear_model import LogisticRegression
-
 
 def preprocessing_dataset(df):
     # Define the categories with the desired order
@@ -58,8 +58,8 @@ def compute_class_overlap(probs, labels, bandwidth='scott', num_points=1000):
     probs = np.asarray(probs)
     labels = np.asarray(labels)
 
-    probs_pos = probs[labels == 1]
-    probs_neg = probs[labels == 0]
+    probs_pos = probs[labels == 'P']
+    probs_neg = probs[labels == 'N']
 
     if len(probs_pos) < 2 or len(probs_neg) < 2:
         raise ValueError("Need at least two samples per class for KDE.")
@@ -83,6 +83,10 @@ def generate_prediction(df):
 
     # Split the data into training and testing sets
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.33, random_state=40)
+
+    scaler = StandardScaler()
+    X_train = scaler.fit_transform(X_train)
+    X_test = scaler.transform(X_test)
 
     # Create and train the Logistic Regression model
     model = LogisticRegression(random_state=40)
@@ -139,9 +143,9 @@ def generate_prediction(df):
 #         return None
 
 # Load the dataset
-dataset_path = "datasets/Nursery.csv"
+dataset_path = "datasets/Covertype.csv"
 df = pd.read_csv(dataset_path)
-df = preprocessing_dataset(df)
+# df = preprocessing_dataset(df)
 
 # pdb.set_trace()
 
@@ -164,21 +168,6 @@ def process_row(row):
         df_pos_hard = df[df['class'].isin(pos_class + hard_class)].copy()
         df_pos_hard.loc[:, 'class'] = df_pos_hard['class'].apply(lambda x: 'P' if x in pos_class else 'N')
         auc_hard, overlap_hard = generate_prediction(df_pos_hard)
-
-                # Return the results as a dictionary
-        salve = {
-            'Positive': pos_class,
-            'Negative': neg_class,
-            'Easy': easy_class,
-            'Hard': hard_class,
-            'AUC': auc,
-            'AUC_Easy': auc_easy,
-            'AUC_Hard': auc_hard,
-            'Overlap': overlap,
-            'Overlap_Easy': overlap_easy,
-            'Overlap_Hard': overlap_hard
-        }
-        print(salve)
 
         # Return the results as a dictionary
         return {
@@ -215,7 +204,7 @@ def running_esperiment_parallel(search_df):
 
 if __name__ == '__main__':
     # Load the search results
-    search_results_path = "./search/search_results_nursery.csv"
+    search_results_path = "./search/search_results_Covertype.csv"
     search_results = pd.read_csv(search_results_path)
 
     # Run the experiment in parallel
