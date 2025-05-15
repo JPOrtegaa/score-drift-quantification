@@ -143,7 +143,7 @@ def generate_prediction(df):
 #         return None
 
 # Load the dataset
-dataset_path = "datasets/Covertype.csv"
+dataset_path = "datasets/Land-use.csv"
 df = pd.read_csv(dataset_path)
 # df = preprocessing_dataset(df)
 
@@ -204,12 +204,12 @@ def running_esperiment_parallel(search_df):
 
 if __name__ == '__main__':
     # Load the search results
-    search_results_path = "./search/search_results_Covertype.csv"
+    search_results_path = "./search/search_results_Land-use.csv"
     search_results = pd.read_csv(search_results_path)
 
     # Run the experiment in parallel
     results_df = running_esperiment_parallel(search_results)
 
     # Save the results to a new CSV file
-    results_df.to_csv("processed_results_Covertype.csv", index=False)
-    print("Processing complete. Results saved to 'processed_results_Covertype.csv'.")
+    results_df.to_csv("processed_results_Land-use.csv", index=False)
+    print("Processing complete. Results saved to 'processed_results_Land-use.csv'.")
