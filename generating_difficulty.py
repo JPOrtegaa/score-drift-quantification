@@ -143,8 +143,11 @@ def generate_prediction(df):
 #         return None
 
 # Load the dataset
-dataset_path = "datasets/Land-use.csv"
+dataset_path = "datasets/HAR.csv"
 df = pd.read_csv(dataset_path)
+df.rename(columns={'Class': 'class'}, inplace=True)
+
+# pdb.set_trace()
 # df = preprocessing_dataset(df)
 
 # pdb.set_trace()
@@ -191,7 +194,7 @@ def running_esperiment_parallel(search_df):
     rows = [row for _, row in search_df.iterrows()]
 
     # Use multiprocessing to process rows in parallel
-    num_cores = cpu_count()
+    num_cores = 1
     with Pool(num_cores) as pool:
         results = list(tqdm(pool.imap(process_row, rows), total=len(rows), desc="Running Experiment"))
 
@@ -204,12 +207,14 @@ def running_esperiment_parallel(search_df):
 
 if __name__ == '__main__':
     # Load the search results
-    search_results_path = "./search/search_results_Land-use.csv"
+    search_results_path = "./search/search_results_HAR.csv"
     search_results = pd.read_csv(search_results_path)
+
+    pdb.set_trace()
 
     # Run the experiment in parallel
     results_df = running_esperiment_parallel(search_results)
 
     # Save the results to a new CSV file
-    results_df.to_csv("processed_results_Land-use.csv", index=False)
-    print("Processing complete. Results saved to 'processed_results_Land-use.csv'.")
+    results_df.to_csv("processed_results_HAR.csv", index=False)
+    print("Processing complete. Results saved to 'processed_results_HAR.csv'.")
