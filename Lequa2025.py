@@ -279,8 +279,11 @@ def apply_qntMethod(qntMethod, p_score, n_score, test, TprFpr=None, thr=None, me
     if qntMethod == "DySyn":
         return DySyn(ts=test, measure=measure, MF=MF_dysyn)
 
-    if qntMethod == "HDy-LP":
-        return mlquantify.HDy_LP(p_score=p_score, n_score=n_score, test=test)
+    if qntMethod == "HDy":
+        return HDy(p_score=p_score, n_score=n_score, test=test)
+    
+    if qntMethod == "HDySyn":
+        return HDySyn(ts=test, MF=MF_dysyn)
 
     if qntMethod == "DyS":
         return DyS(p_score=p_score, n_score=n_score, test=test, measure=measure)
@@ -553,9 +556,8 @@ def MS2Syn(ts, measure, MF_dysyn):
 
 
 def PCC(ts):
-    dC = CC(ts)  # Implement CC function separately
-
-    result = max(0, min(dC[0], 1))
+    pos_score_mean = ts.mean()
+    result = max(0, min(pos_score_mean, 1))
 
     return np.array([result, 1 - result], dtype=float)
 
@@ -564,7 +566,7 @@ def PCC(ts):
 
 
 def PACC(ts, TprFpr, thr):
-    dC = CC(ts)  # Implement CC function separately
+    dC = PCC(ts)
 
     tpr_fpr_row = TprFpr[TprFpr[:, 0] == thr, 1:3].astype(float)
     if tpr_fpr_row.size == 0:
@@ -581,7 +583,7 @@ def PACCSyn(ts, measure, MF_dysyn):
     rQnt = DySyn(ts, measure, MF_dysyn)
     TprFpr = np.array(getTPRandFPRbyThreshold(MoSS(1000, 0.5, rQnt[2]))).astype(float)  # Implement getTPRandFPRbyThreshold
 
-    dC = CC(ts)  # Implement CC function separately
+    dC = PCC(ts)
 
     tpr_fpr_row = TprFpr[TprFpr[:, 0] == 0.5, 1:3].astype(float)
     if tpr_fpr_row.size == 0:
@@ -622,6 +624,50 @@ def SMMSyn(ts, measure, MF_dysyn):
 
     return result
 
+def HDy(p_score, n_score, test, err=1e-5):
+    
+    bins=np.linspace(10, 110, 11).astype(int)
+    measure = 'hellinger'
+
+    results = []
+    distances = []
+
+    for b_size in bins:
+        Sty_1 = getHist(p_score, b_size)  # Implement getHist separately
+        Sty_2 = getHist(n_score, b_size)
+        Uy = getHist(test, b_size)
+
+        def f(x):
+            return DySyn_distance(np.vstack([(Sty_1 * x) + (Sty_2 * (1 - x)), Uy]), method=measure)  # Implement DyS_distance separately
+
+        best_alpha = TernarySearch(0, 1, f, err)  # Implement TernarySearch separately
+        results.append(best_alpha)
+        distances.append(f(best_alpha))
+
+    result = statistics.median(results)
+    result = max(0, min(result, 1))
+
+    return [np.array([result, 1 - result]), min(distances)]
+
+def HDySyn(ts, MF=np.arange(0.1, 1.0, 0.2)):
+    MF = np.round(MF, 2)
+
+    results = []
+    distances = []
+
+    for mf in MF:
+        scores = MoSS(1000, 0.5, mf)  # Implement MoSS function separately
+        test_p = scores[scores[:, 2] == 1, 0]
+        test_n = scores[scores[:, 2] == 2, 0]
+
+        rQnt = HDy(test_p, test_n, ts)  # Implement DySyn_DyS separately
+
+        distances.append(rQnt[1])
+        results.append(rQnt[0][0])
+
+    best_result = round(results[np.argmin(distances)], 2)
+    return [np.array([best_result, 1 - best_result]), min(distances), MF[np.argmin(distances)]]
+
 
 # ## Main
 
@@ -637,8 +683,8 @@ def exec_eval_complexity_single(mi, MFtr, MF_dysyn):
     n_tests = 10
     MF = np.arange(0.05, 1.0, 0.05)
     MF = np.round(MF, 2)
-    qnt = ['CC', 'ACC', 'ACCSyn-TS', 'ACCSyn-SORD', 'T50', 'T50Syn-TS', 'T50Syn-SORD', 'PCC', 'PACC', 'PACCSyn-TS', 'PACCSyn-SORD', 'X', 'XSyn-TS', 'XSyn-SORD', 'MAX', 'MAXSyn-TS', 'MAXSyn-SORD', 'MS', 'MSSyn-TS', 'MSSyn-SORD', 'MS2', 'MS2Syn-TS', 'MS2Syn-SORD', 'DyS-TS', 'DySyn-TS', 'DySyn-SORD', 'SMM', 'SMMSyn-TS', 'SMMSyn-SORD']
-    # qnt = ['CC', 'ACC', 'ACCSyn-TS', 'T50', 'T50Syn-TS', 'PCC', 'PACC', 'PACCSyn-TS',  'X', 'XSyn-TS', 'MAX', 'MAXSyn-TS', 'MS', 'MSSyn-TS', 'MS2', 'MS2Syn-TS', 'DyS-TS', 'DySyn-TS', 'SMM', 'SMMSyn-TS']
+    # qnt = ['CC', 'ACC', 'ACCSyn-TS', 'ACCSyn-SORD', 'T50', 'T50Syn-TS', 'T50Syn-SORD', 'PCC', 'PACC', 'PACCSyn-TS', 'PACCSyn-SORD', 'X', 'XSyn-TS', 'XSyn-SORD', 'MAX', 'MAXSyn-TS', 'MAXSyn-SORD', 'MS', 'MSSyn-TS', 'MSSyn-SORD', 'MS2', 'MS2Syn-TS', 'MS2Syn-SORD', 'DyS-TS', 'DySyn-TS', 'DySyn-SORD', 'SMM', 'SMMSyn-TS', 'SMMSyn-SORD']
+    qnt = ['CC', 'ACC', 'ACCSyn-TS', 'T50', 'T50Syn-TS', 'PCC', 'PACC', 'PACCSyn-TS', 'X', 'XSyn-TS', 'MAX', 'MAXSyn-TS', 'MS', 'MSSyn-TS', 'MS2', 'MS2Syn-TS', 'DyS-TS', 'DySyn-TS', 'SMM', 'SMMSyn-TS', 'HDy', 'HDySyn']
     results = []
 
     scores = MoSS(2000, 0.5, MFtr[mi])
