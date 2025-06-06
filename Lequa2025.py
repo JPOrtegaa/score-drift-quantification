@@ -412,13 +412,13 @@ def MAXSyn(ts, measure, MF_dysyn):
 
 
 def T50(ts, TprFpr):
-    dC = CC(ts)  # Implement CC function separately
 
     # Usual T50 implementation
     min_index = abs(TprFpr[:, 1] - 0.5)
     min_index = np.argmin(min_index)
 
     tpr_fpr_row = TprFpr[min_index, 1:3].astype(float)
+    dC = CC(ts)  # Implement CC function separately
 
     tpr, fpr = tpr_fpr_row
 
@@ -430,6 +430,8 @@ def T50(ts, TprFpr):
 def T50Syn(ts, measure, MF_dysyn):
     rQnt = DySyn(ts, measure, MF_dysyn)
     TprFpr = np.array(getTPRandFPRbyThreshold(MoSS(1000, 0.5, rQnt[2]))).astype(float)
+
+    return T50(ts, TprFpr)  # Reuse the T50 function
 
     dC = CC(ts)  # Implement CC function separately
 
