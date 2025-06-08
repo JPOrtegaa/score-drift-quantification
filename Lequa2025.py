@@ -329,18 +329,18 @@ def ACCSyn(ts, measure, MF_dysyn):
 
 # In[10]:
 
-
 def X(ts, TprFpr):
-    dC = CC(ts)  # Implement CC function separately
 
     min_index = abs((1 - TprFpr[:, 1]) - TprFpr[:, 2])
     min_index = np.argmin(min_index)
 
-    tpr_fpr_row = TprFpr[min_index, 1:3].astype(float)
+    tpr_fpr_row = TprFpr[min_index, 0:3].astype(float)
+
     if tpr_fpr_row.size == 0:
         raise ValueError("Threshold value not found in TprFpr.")
 
-    tpr, fpr = tpr_fpr_row
+    thr, tpr, fpr = tpr_fpr_row
+    dC = CC(ts, thr)  # Implement CC function separately
 
     result = (dC[0] - fpr) / (tpr - fpr) if (tpr - fpr) != 0 else 0
     result = max(0, min(result, 1))
@@ -351,17 +351,16 @@ def XSyn(ts, measure, MF_dysyn):
     rQnt = DySyn(ts, measure, MF_dysyn)
     TprFpr = np.array(getTPRandFPRbyThreshold(MoSS(1000, 0.5, rQnt[2]))).astype(float)
     
-    dC = CC(ts)  # Implement CC function separately
-
     # Usual X implementation
     min_index = abs((1 - TprFpr[:, 1]) - TprFpr[:, 2])
     min_index = np.argmin(min_index)
 
-    tpr_fpr_row = TprFpr[min_index, 1:3].astype(float)
+    tpr_fpr_row = TprFpr[min_index, 0:3].astype(float)
     # if tpr_fpr_row.size == 0:
     #   raise ValueError("Threshold value not found in TprFpr.")
 
-    tpr, fpr = tpr_fpr_row
+    thr, tpr, fpr = tpr_fpr_row
+    dC = CC(ts, thr)  # Implement CC function separately
 
     result = (dC[0] - fpr) / (tpr - fpr) if (tpr - fpr) != 0 else 0
     result = max(0, min(result, 1))
@@ -371,17 +370,16 @@ def XSyn(ts, measure, MF_dysyn):
 
 # In[11]:
 
-
 def MAX(ts, TprFpr):
-    dC = CC(ts)  # Implement CC function separately
 
     # Usual MAX implementation
     max_index = abs(TprFpr[:, 1] - TprFpr[:, 2])
     max_index = np.argmax(max_index)
 
-    tpr_fpr_row = TprFpr[max_index, 1:3].astype(float)
+    tpr_fpr_row = TprFpr[max_index, 0:3].astype(float)
 
-    tpr, fpr = tpr_fpr_row
+    thr, tpr, fpr = tpr_fpr_row
+    dC = CC(ts, thr)  # Implement CC function separately
 
     result = (dC[0] - fpr) / (tpr - fpr) if (tpr - fpr) != 0 else 0
     result = max(0, min(result, 1))
@@ -391,16 +389,15 @@ def MAX(ts, TprFpr):
 def MAXSyn(ts, measure, MF_dysyn):
     rQnt = DySyn(ts, measure, MF_dysyn)
     TprFpr = np.array(getTPRandFPRbyThreshold(MoSS(1000, 0.5, rQnt[2]))).astype(float)
-    
-    dC = CC(ts)  # Implement CC function separately
 
     # Usual MAX implementation
     max_index = abs(TprFpr[:, 1] - TprFpr[:, 2])
     max_index = np.argmax(max_index)
 
-    tpr_fpr_row = TprFpr[max_index, 1:3].astype(float)
+    tpr_fpr_row = TprFpr[max_index, 0:3].astype(float)
 
-    tpr, fpr = tpr_fpr_row
+    thr, tpr, fpr = tpr_fpr_row
+    dC = CC(ts, thr)  # Implement CC function separately
 
     result = (dC[0] - fpr) / (tpr - fpr) if (tpr - fpr) != 0 else 0
     result = max(0, min(result, 1))
@@ -417,10 +414,10 @@ def T50(ts, TprFpr):
     min_index = abs(TprFpr[:, 1] - 0.5)
     min_index = np.argmin(min_index)
 
-    tpr_fpr_row = TprFpr[min_index, 1:3].astype(float)
-    dC = CC(ts)  # Implement CC function separately
+    tpr_fpr_row = TprFpr[min_index, 0:3].astype(float)
 
-    tpr, fpr = tpr_fpr_row
+    thr, tpr, fpr = tpr_fpr_row
+    dC = CC(ts, thr)  # Implement CC function separately
 
     result = (dC[0] - fpr) / (tpr - fpr) if (tpr - fpr) != 0 else 0
     result = max(0, min(result, 1))
@@ -433,28 +430,11 @@ def T50Syn(ts, measure, MF_dysyn):
 
     return T50(ts, TprFpr)  # Reuse the T50 function
 
-    dC = CC(ts)  # Implement CC function separately
-
-    # Usual T50 implementation
-    min_index = abs(TprFpr[:, 1] - 0.5)
-    min_index = np.argmin(min_index)
-
-    tpr_fpr_row = TprFpr[min_index, 1:3].astype(float)
-
-    tpr, fpr = tpr_fpr_row
-
-    result = (dC[0] - fpr) / (tpr - fpr) if (tpr - fpr) != 0 else 0
-    result = max(0, min(result, 1))
-
-    return np.array([result, 1 - result], dtype=float)
-
 
 # In[14]:
 
-
 def MS(ts, TprFpr):
   results = []
-  dC = CC(ts)  # Implement CC function separately
 
   # Usual MS implementation
   threshold_set = np.arange(0.01, 1.00, 0.01)
@@ -462,6 +442,7 @@ def MS(ts, TprFpr):
   for threshold in threshold_set:
     threshold = round(threshold, 2) # 0.060000003 shenanigans
     tpr, fpr = TprFpr[TprFpr[:, 0] == threshold, 1:3].astype(float)[0]
+    dC = CC(ts, threshold)  # Implement CC function separately
 
     result = (dC[0] - fpr) / (tpr - fpr) if (tpr - fpr) != 0 else 0
     result = max(0, min(result, 1))
@@ -474,8 +455,6 @@ def MS(ts, TprFpr):
 def MS2(ts, TprFpr):
     results = []
 
-    dC = CC(ts)  # Implement CC function separately
-
     # Usual MS2 implementation
     index = np.where(abs(TprFpr[:,1]-TprFpr[:,2]) > (1/4))[0].tolist()
     threshold_set = TprFpr[index,0]
@@ -486,6 +465,7 @@ def MS2(ts, TprFpr):
     for threshold in threshold_set:
       threshold = round(threshold, 2) # 0.060000003 shenanigans
       tpr, fpr = TprFpr[TprFpr[:, 0] == threshold, 1:3].astype(float)[0]
+      dC = CC(ts, threshold)  # Implement CC function separately
 
       result = (dC[0] - fpr) / (tpr - fpr) if (tpr - fpr) != 0 else 0
       result = max(0, min(result, 1))
@@ -495,9 +475,7 @@ def MS2(ts, TprFpr):
     result = np.median(results)
     return np.array([result, 1 - result], dtype=float)
 
-
 # In[15]:
-
 
 def MSSyn(ts, measure, MF_dysyn):
     results = []
@@ -505,14 +483,13 @@ def MSSyn(ts, measure, MF_dysyn):
     rQnt = DySyn(ts, measure, MF_dysyn)
     TprFpr = np.array(getTPRandFPRbyThreshold(MoSS(1000, 0.5, rQnt[2]))).astype(float)
 
-    dC = CC(ts)  # Implement CC function separately
-
     # Usual MS implementation
     threshold_set = np.arange(0.01, 1.00, 0.01)
 
     for threshold in threshold_set:
       threshold = round(threshold, 2) # 0.060000003 shenanigans
       tpr, fpr = TprFpr[TprFpr[:, 0] == threshold, 1:3].astype(float)[0]
+      dC = CC(ts, threshold)  # Implement CC function separately
 
       result = (dC[0] - fpr) / (tpr - fpr) if (tpr - fpr) != 0 else 0
       result = max(0, min(result, 1))
@@ -525,15 +502,12 @@ def MSSyn(ts, measure, MF_dysyn):
 
 # In[16]:
 
-
 def MS2Syn(ts, measure, MF_dysyn):
     results = []
 
     rQnt = DySyn(ts, measure, MF_dysyn)
     TprFpr = np.array(getTPRandFPRbyThreshold(MoSS(1000, 0.5, rQnt[2]))).astype(float)
     
-    dC = CC(ts)  # Implement CC function separately
-
     # Usual MS2 implementation
     index = np.where(abs(TprFpr[:,1]-TprFpr[:,2]) > (1/4))[0].tolist()
     threshold_set = TprFpr[index,0]
@@ -544,6 +518,7 @@ def MS2Syn(ts, measure, MF_dysyn):
     for threshold in threshold_set:
       threshold = round(threshold, 2) # 0.060000003 shenanigans
       tpr, fpr = TprFpr[TprFpr[:, 0] == threshold, 1:3].astype(float)[0]
+      dC = CC(ts, threshold)  # Implement CC function separately
 
       result = (dC[0] - fpr) / (tpr - fpr) if (tpr - fpr) != 0 else 0
       result = max(0, min(result, 1))
@@ -556,7 +531,6 @@ def MS2Syn(ts, measure, MF_dysyn):
 
 # In[17]:
 
-
 def PCC(ts):
     pos_score_mean = ts.mean()
     result = max(0, min(pos_score_mean, 1))
@@ -565,7 +539,6 @@ def PCC(ts):
 
 
 # In[18]:
-
 
 def PACC(ts, TprFpr, thr):
     dC = PCC(ts)
@@ -600,7 +573,6 @@ def PACCSyn(ts, measure, MF_dysyn):
 
 
 # In[19]:
-
 
 def SMM(p_scores, n_scores, t_scores):
   mean_p_scores = np.mean(p_scores)
@@ -725,7 +697,7 @@ def exec_eval_complexity_single(mi, MFtr, MF_dysyn):
                             MF_dysyn=MF_dysyn,
                         )
 
-                        if qntMethod == "DySyn":
+                        if qntMethod in ["DySyn", "HDy", "HDySyn"]:
                             freq_PRE = np.round(qnt_re[0][0], 3)
                         else:
                             freq_PRE = np.round(qnt_re[0], 3)
