@@ -651,7 +651,7 @@ def HDySyn(ts, MF=np.arange(0.1, 1.0, 0.2)):
 def exec_eval_complexity_single(mi, MFtr, MF_dysyn):
 
     # print(MFtr[mi])
-    position = (mi+1) % 30
+    # position = (mi+1) % 30
 
     vdist = {"TS": "topsoe", "JD": "jensen_difference", "PS": "prob_symm", "ORD": "ord", "SORD": "sord", "TN": "taneja", "HD": "hellinger"}
     var_perc = np.arange(0, 1.01, 0.01)
@@ -666,10 +666,11 @@ def exec_eval_complexity_single(mi, MFtr, MF_dysyn):
     scores = MoSS(2000, 0.5, MFtr[mi])
     TprFpr = np.array(getTPRandFPRbyThreshold(scores)).astype(float)
 
-    description = f"Pos_prop: {MFtr[mi]}"
+    # description = f"Pos_prop: {MFtr[mi]}"
 
     for k in range(len(var_size)):
-        for i in tqdm(range(len(var_perc)), desc=description, leave=True, position=position):
+        # for i in tqdm(range(len(var_perc)), desc=description, leave=True, position=position):
+        for i in range(len(var_perc)):
             for j in range(n_tests):
                 for ti in range(len(MF)):
                     for qi in qnt:
@@ -725,21 +726,31 @@ def worker(mi_MFtr_MFdysyn):
 
     return results  # No need to return anything it was NONE before!!!!
 
-def exec_eval_complexity_parallel(MFtr, MF_dysyn):
-    # Prepare arguments for each worker
-    tasks = [(mi, MFtr, MF_dysyn) for mi in range(len(MFtr))]
+def exec_eval_complexity_parallel(MFtr, dysyn_range):
 
-    pdb.set_trace()
+    for MF_dysyn in tqdm(dysyn_range, desc="MF_dysyn combinations", leave=True, position=0):
+        # Prepare arguments for each worker
+        start, finish, step = MF_dysyn["start"], MF_dysyn["finish"], MF_dysyn["step"]
+        # pdb.set_trace()
+        MF_dysyn = np.round(np.arange(start, finish, step), 2)
+        tasks = [(mi, MFtr, MF_dysyn) for mi in range(len(MFtr))]
 
-    with multiprocessing.Pool(processes=multiprocessing.cpu_count()) as pool:
-        results = list(tqdm(pool.map(worker, tasks), total=len(tasks), desc="Parallel MFtr", leave=False, position=0))
+        # Write CSV header before multiprocessing starts
+        file_name = "./ablation/results_syn_" + str(start) + "_" + str(finish) + "_" + str(step) + ".csv"
+        if not os.path.exists(file_name):
+            os.makedirs(os.path.dirname(file_name), exist_ok=True)
+            pd.DataFrame(columns=["MFtr", "MFte", "R_1", "P_1", "AE", "Distance", "Qnt"]).to_csv(file_name, index=False)
 
-    # Flatten results and convert to DataFrame
-    flat_results = [item for sublist in results for item in sublist]
-    df = pd.DataFrame(flat_results, columns=["MFtr", "MFte", "R_1", "P_1", "AE", "Distance", "Qnt"])
-    df.to_csv("results_syn.csv", mode="a", header=False, index=False)
 
-    print("All workers finished.")
+        with multiprocessing.Pool(processes=multiprocessing.cpu_count()) as pool:
+            results = list(pool.map(worker, tasks))
+
+        # Flatten results and convert to DataFrame
+        flat_results = [item for sublist in results for item in sublist]
+        df = pd.DataFrame(flat_results, columns=["MFtr", "MFte", "R_1", "P_1", "AE", "Distance", "Qnt"])
+        df.to_csv(file_name, mode="a", header=False, index=False)
+
+        print("All workers finished.")
 
 def generate_combinations(step_array):
     # Store only start, finish, and step values for each combination
@@ -753,8 +764,6 @@ def generate_combinations(step_array):
         start += 0.1
         finish -= 0.1
 
-    dysyn_range.append({"start": 0.5, "finish": 0.5, "step": 0.0})
-
     return dysyn_range
 
 if __name__ == "__main__":
@@ -766,11 +775,15 @@ if __name__ == "__main__":
     step_array[0] = np.round(0.01, 2)
 
     dysyn_range = generate_combinations(step_array)
+
+    dysyn_server = dysyn_range[:18]
+    dysyn_home = dysyn_range[18:34]
+    dysyn_luiz = dysyn_range[34:50]
+    dysyn_rafael = dysyn_range[50:]
+
+    exec_eval_complexity_parallel(m_Tr, dysyn_home)
+
     pdb.set_trace()
 
-
-    # Write CSV header before multiprocessing starts
-    pd.DataFrame(columns=["MFtr", "MFte", "R_1", "P_1", "AE", "Distance", "Qnt"]).to_csv("results_syn.csv", index=False)
-
     # exec_eval_complexity_parallel(m_Tr, MF_dysyn)
-    print("Processing complete. Results saved in 'results_syn.csv'")
+    print("Experiment complete!")
