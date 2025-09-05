@@ -9,6 +9,7 @@ import statistics
 import multiprocessing
 
 from tqdm import tqdm
+import json
 
 
 # ### Quantifiers
@@ -650,6 +651,7 @@ def HDySyn(ts, MF=np.arange(0.1, 1.0, 0.2)):
 def exec_eval_complexity_single(mi, MFtr, MF_dysyn):
 
     # print(MFtr[mi])
+    position = (mi+1) % 30
 
     vdist = {"TS": "topsoe", "JD": "jensen_difference", "PS": "prob_symm", "ORD": "ord", "SORD": "sord", "TN": "taneja", "HD": "hellinger"}
     var_perc = np.arange(0, 1.01, 0.01)
@@ -667,7 +669,7 @@ def exec_eval_complexity_single(mi, MFtr, MF_dysyn):
     description = f"Pos_prop: {MFtr[mi]}"
 
     for k in range(len(var_size)):
-        for i in tqdm(range(len(var_perc)), desc=description, leave=False):
+        for i in tqdm(range(len(var_perc)), desc=description, leave=True, position=position):
             for j in range(n_tests):
                 for ti in range(len(MF)):
                     for qi in qnt:
@@ -727,8 +729,10 @@ def exec_eval_complexity_parallel(MFtr, MF_dysyn):
     # Prepare arguments for each worker
     tasks = [(mi, MFtr, MF_dysyn) for mi in range(len(MFtr))]
 
+    pdb.set_trace()
+
     with multiprocessing.Pool(processes=multiprocessing.cpu_count()) as pool:
-        results = list(tqdm(pool.map(worker, tasks), total=len(tasks), desc="Parallel MFtr"))
+        results = list(tqdm(pool.map(worker, tasks), total=len(tasks), desc="Parallel MFtr", leave=False, position=0))
 
     # Flatten results and convert to DataFrame
     flat_results = [item for sublist in results for item in sublist]
@@ -737,13 +741,36 @@ def exec_eval_complexity_parallel(MFtr, MF_dysyn):
 
     print("All workers finished.")
 
+def generate_combinations(step_array):
+    # Store only start, finish, and step values for each combination
+    dysyn_range = []
+    start = 0.0
+    finish = 1.0
+
+    while start < finish:
+        for step in step_array:
+            dysyn_range.append({"start": np.round(start, 2), "finish": np.round(finish, 2), "step": np.round(step, 2)})
+        start += 0.1
+        finish -= 0.1
+
+    dysyn_range.append({"start": 0.5, "finish": 0.5, "step": 0.0})
+
+    return dysyn_range
+
 if __name__ == "__main__":
     m_Tr = np.arange(0.05, 1.0, 0.05)
     m_Tr = np.round(m_Tr, 2)
-    MF_dysyn = np.arange(0.1, 1.0, 0.2)
+    # MF_dysyn = np.arange(0.1, 1.0, 0.2)
+
+    step_array = np.round(np.arange(0,0.55,0.05), 2)
+    step_array[0] = np.round(0.01, 2)
+
+    dysyn_range = generate_combinations(step_array)
+    pdb.set_trace()
+
 
     # Write CSV header before multiprocessing starts
     pd.DataFrame(columns=["MFtr", "MFte", "R_1", "P_1", "AE", "Distance", "Qnt"]).to_csv("results_syn.csv", index=False)
 
-    exec_eval_complexity_parallel(m_Tr, MF_dysyn)
+    # exec_eval_complexity_parallel(m_Tr, MF_dysyn)
     print("Processing complete. Results saved in 'results_syn.csv'")
