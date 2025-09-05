@@ -781,9 +781,6 @@ if __name__ == "__main__":
     dysyn_luiz = dysyn_range[34:50]
     dysyn_rafael = dysyn_range[50:]
 
-    exec_eval_complexity_parallel(m_Tr, dysyn_home)
+    exec_eval_complexity_parallel(m_Tr, dysyn_server)
 
-    pdb.set_trace()
-
-    # exec_eval_complexity_parallel(m_Tr, MF_dysyn)
     print("Experiment complete!")
