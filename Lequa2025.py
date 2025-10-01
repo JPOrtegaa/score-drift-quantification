@@ -781,6 +781,12 @@ if __name__ == "__main__":
     dysyn_luiz = dysyn_range[34:50]
     dysyn_rafael = dysyn_range[50:]
 
+    # Remove items in dysyn_home before start=0.2, finish=0.8, step=0.25
+    for idx, item in enumerate(dysyn_home):
+        if item["start"] == 0.2 and item["finish"] == 0.8 and item["step"] == 0.25:
+            dysyn_home = dysyn_home[idx:]
+            break
+
     for dysyn in [dysyn_home, dysyn_luiz, dysyn_rafael]:
         exec_eval_complexity_parallel(m_Tr, dysyn)
 
