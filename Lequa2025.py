@@ -63,7 +63,9 @@ def DyS(p_score, n_score, test, measure="topsoe", bins=np.arange(2, 22, 2), err=
 
 def DySyn(ts, measure, MF=np.arange(0.1, 1.0, 0.2)):
     # MF = np.arange(0.2, 0.7, 0.2) # mudar de 0.2 a 0.7
-    MF = np.round(MF, 2)
+    # Ensure MF is always iterable (handles scalar numpy.float64 / 0-d arrays)
+    MF = np.atleast_1d(np.round(MF, 2)).astype(float)
+    # pdb.set_trace()
 
     results = []
     distances = []
@@ -625,7 +627,9 @@ def HDy(p_score, n_score, test, err=1e-5):
     return [np.array([result, 1 - result]), min(distances)]
 
 def HDySyn(ts, MF=np.arange(0.1, 1.0, 0.2)):
-    MF = np.round(MF, 2)
+    # Ensure MF is always iterable (handles scalar numpy.float64 / 0-d arrays)
+    MF = np.atleast_1d(np.round(MF, 2)).astype(float)
+    # pdb.set_trace()
 
     results = []
     distances = []
@@ -731,8 +735,13 @@ def exec_eval_complexity_parallel(MFtr, dysyn_range):
     for MF_dysyn in tqdm(dysyn_range, desc="MF_dysyn combinations", leave=True, position=0):
         # Prepare arguments for each worker
         start, finish, step = MF_dysyn["start"], MF_dysyn["finish"], MF_dysyn["step"]
-        # pdb.set_trace()
-        MF_dysyn = np.round(np.arange(start, finish, step), 2)
+        
+        if start == finish:
+            # Make sure MF_dysyn is a 1-D array even for a single value
+            MF_dysyn = np.array([np.round(start, 2)], dtype=float)
+        else:
+            MF_dysyn = np.round(np.arange(start, finish, step), 2)
+        
         tasks = [(mi, MFtr, MF_dysyn) for mi in range(len(MFtr))]
 
         # Write CSV header before multiprocessing starts
@@ -781,13 +790,13 @@ if __name__ == "__main__":
     dysyn_luiz = dysyn_range[34:50]
     dysyn_rafael = dysyn_range[50:]
 
-    # Remove items in dysyn_home before start=0.2, finish=0.8, step=0.25
-    for idx, item in enumerate(dysyn_home):
-        if item["start"] == 0.2 and item["finish"] == 0.8 and item["step"] == 0.25:
-            dysyn_home = dysyn_home[idx:]
-            break
+    # # Remove items in dysyn_home before start=0.2, finish=0.8, step=0.25
+    # for idx, item in enumerate(dysyn_home):
+    #     if item["start"] == 0.2 and item["finish"] == 0.8 and item["step"] == 0.25:
+    #         dysyn_home = dysyn_home[idx:]
+    #         break
 
-    for dysyn in [dysyn_home, dysyn_luiz, dysyn_rafael]:
-        exec_eval_complexity_parallel(m_Tr, dysyn)
+    for dysyn in [dysyn_rafael]:
+        exec_eval_complexity_parallel(m_Tr, [dysyn[5]])
 
     print("Experiment complete!")
