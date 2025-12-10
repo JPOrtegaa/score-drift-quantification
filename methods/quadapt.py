@@ -1,7 +1,7 @@
 import numpy as np
 
-from .quantifiers import CC, PCC, T50, DySyn, HDy, SMM
-from .quantifiers_utils import getTPRandFPRbyThreshold, MoSS
+from .Quantifiers import CC, PCC, T50, DySyn, HDy, SMM
+from .Quantifiers_Utils import getTPRandFPRbyThreshold, MoSS
 
 def ACCSyn(ts, measure, MF_dysyn):
     rQnt = DySyn(ts, measure, MF_dysyn)

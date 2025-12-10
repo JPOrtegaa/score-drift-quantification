@@ -1,7 +1,7 @@
 import numpy as np
 import statistics
 
-from .quantifiers_utils import getHist, getTPRandFPRbyThreshold, DySyn_distance, TernarySearch, MoSS
+from .Quantifiers_Utils import getHist, getTPRandFPRbyThreshold, DySyn_distance, TernarySearch, MoSS
 
 def CC(test, thr=0.5):
     result = np.sum(test >= thr) / len(test)
@@ -230,14 +230,14 @@ def PACC(ts, TprFpr, thr):
     return np.array([result, 1 - result], dtype=float)
 
 def SMM(p_scores, n_scores, t_scores):
-  mean_p_scores = np.mean(p_scores)
-  mean_n_scores = np.mean(n_scores)
-  mean_t_scores = np.mean(t_scores)
+    mean_p_scores = np.mean(p_scores)
+    mean_n_scores = np.mean(n_scores)
+    mean_t_scores = np.mean(t_scores)
 
-  alpha = (mean_t_scores - mean_n_scores) / (mean_p_scores - mean_n_scores)
-  alpha = max(0, min(alpha, 1))
+    alpha = (mean_t_scores - mean_n_scores) / (mean_p_scores - mean_n_scores)
+    alpha = max(0, min(alpha, 1))
 
-  return np.round([alpha, abs(1-alpha)], 2)
+    return np.round([alpha, abs(1-alpha)], 2)
 
 def HDy(p_score, n_score, test, err=1e-5):
     

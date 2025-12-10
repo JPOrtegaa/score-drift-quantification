@@ -6,9 +6,9 @@ import multiprocessing
 
 from tqdm import tqdm
 
-from methods.quadapt import ACCSyn, PACCSyn, XSyn, MAXSyn, T50Syn, MSSyn, MS2Syn, SMMSyn, HDySyn
-from methods.quantifiers import CC, ACC, PCC, PACC, X, MAX, T50, MS, MS2, DyS, HDy, SMM, DySyn
-from methods.quantifiers_utils import getTPRandFPRbyThreshold, MoSS
+from methods.QuaDapt import ACCSyn, PACCSyn, XSyn, MAXSyn, T50Syn, MSSyn, MS2Syn, SMMSyn, HDySyn
+from methods.Quantifiers import CC, ACC, PCC, PACC, X, MAX, T50, MS, MS2, DyS, HDy, SMM, DySyn
+from methods.Quantifiers_Utils import getTPRandFPRbyThreshold, MoSS
 
 def apply_qntMethod(qntMethod, p_score, n_score, test, TprFpr=None, thr=None, measure="hellinger", MF_dysyn=np.arange(0.1, 1.0, 0.2)):
     import mlquantify  # Ensure the mlquantify package is available
