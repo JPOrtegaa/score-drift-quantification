@@ -9,6 +9,8 @@ from sklearn.linear_model import LogisticRegression
 
 import pdb
 
+from tqdm import tqdm
+
 from methods.Quantifiers import (
     CC,
     ACC,
@@ -182,13 +184,16 @@ def handle_batch_results(batch_result, batch_df, quantifiers):
 
 def test_one_vs_rest_classifiers(tests, test_df, classifiers, quantifiers):
 
-    upp = UPP(batch_size=100, n_prevalences=2, repeats=2, random_state=42)
+    upp = UPP(batch_size=100, n_prevalences=100, repeats=10, random_state=42)
 
     X = test_df.drop(columns=['class'])
     y = test_df['class']
 
+    # Calculate total number of batches
+    total_batches = upp.n_prevalences * upp.repeats
+    
     all_results = []
-    for idx in upp.split(X, y):
+    for idx in tqdm(upp.split(X, y), total=total_batches, desc="Processing batches", unit="batch"):
         batch_result = {}
         for cls in tests:
             test = tests[cls]
