@@ -1,7 +1,7 @@
 import numpy as np
 import statistics
 
-from .Quantifiers_Utils import getHist, getTPRandFPRbyThreshold, DySyn_distance, TernarySearch, MoSS
+from .quantifiers_utils import getHist, getTPRandFPRbyThreshold, DySyn_distance, TernarySearch, MoSS
 
 def CC(test, thr=0.5):
     result = np.sum(test >= thr) / len(test)

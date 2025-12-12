@@ -11,7 +11,7 @@ import pdb
 
 from tqdm import tqdm
 
-from methods.Quantifiers import (
+from methods.quantifiers import (
     CC,
     ACC,
     PCC,
@@ -26,7 +26,7 @@ from methods.Quantifiers import (
     HDy,
     X,
 )
-from methods.QuaDapt import (
+from methods.quadapt import (
     ACCSyn,
     PACCSyn,
     XSyn,
@@ -37,7 +37,7 @@ from methods.QuaDapt import (
     SMMSyn,
     HDySyn,
 )
-from methods.Quantifiers_Utils import getTPRandFPRbyThreshold
+from methods.quantifiers_utils import getTPRandFPRbyThreshold
 import math
 
 def get_quantifier_map(test_scores, tpr_fpr, pos_scores, neg_scores):
