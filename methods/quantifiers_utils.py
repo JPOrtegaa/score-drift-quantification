@@ -5,10 +5,10 @@ def getTPRandFPRbyThreshold(validation_scores):
     arrayOfTPRandFPRByTr = []
 
     total_positive = np.sum(validation_scores[:, 2] == 1)
-    total_negative = np.sum(validation_scores[:, 2] == 2)
+    total_negative = np.sum(validation_scores[:, 2] == 0)
 
     for threshold in unique_scores:
-        fp = np.sum((validation_scores[:, 0] > threshold) & (validation_scores[:, 2] == 2))
+        fp = np.sum((validation_scores[:, 0] > threshold) & (validation_scores[:, 2] == 0))
         tp = np.sum((validation_scores[:, 0] > threshold) & (validation_scores[:, 2] == 1))
         tpr = tp / total_positive if total_positive > 0 else 0
         fpr = fp / total_negative if total_negative > 0 else 0
