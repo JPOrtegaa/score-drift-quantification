@@ -208,11 +208,13 @@ def test_one_vs_rest_classifiers(tests, test_df, classifiers, quantifiers):
 
 
 if __name__ == "__main__":
-    df = pd.read_csv("./datasets/Dermatology.csv")
+    df = pd.read_csv("./datasets/Avila.csv")
+    df['class'] = df['V11']
+    df = df.drop(columns=['V11'])
 
     train_df, test_df = train_test_split(df, test_size=0.5, stratify=df['class'], random_state=42)
-    train_df, train_scaler = scale_dataset(train_df)
-    test_df, _ = scale_dataset(test_df, scaler=train_scaler)
+    # train_df, train_scaler = scale_dataset(train_df)
+    # test_df, _ = scale_dataset(test_df, scaler=train_scaler)
     
     trains = binarize_dataset(train_df)
     tests = binarize_dataset(test_df)
@@ -267,4 +269,4 @@ if __name__ == "__main__":
 
     # Write to CSV
     results_df = pd.DataFrame(rows).round(2)
-    results_df.to_csv('results.csv', index=False)
+    results_df.to_csv('avila_results.csv', index=False)
