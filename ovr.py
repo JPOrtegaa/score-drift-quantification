@@ -166,7 +166,8 @@ def handle_batch_results(batch_result, batch_df, quantifiers):
         
         # Normalize predictions to sum to 1
         total = sum(class_predictions.values())
-        normalized_predictions = {cls: pred / total for cls, pred in class_predictions.items()}
+        normalized_predictions = {cls: pred / total if total > 0 else 0 for cls, pred in class_predictions.items()}
+        # pdb.set_trace()
 
         # Compute normalized cross-entropy
         eps = 1e-10
