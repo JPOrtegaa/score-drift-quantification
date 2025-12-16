@@ -39,6 +39,8 @@ from methods.quadapt import (
 )
 from methods.quantifiers_utils import getTPRandFPRbyThreshold
 import math
+import sys
+import argparse
 
 def get_quantifier_map(test_scores, tpr_fpr, pos_scores, neg_scores):
     """Returns a dictionary mapping quantifier names to their callable functions."""
@@ -207,11 +209,26 @@ def test_one_vs_rest_classifiers(tests, test_df, classifiers, quantifiers):
 
     return all_results
 
+def pre_process_dts(df, dataset_name):
+
+    if dataset_name == 'Chess game':
+        df = df.rename(columns={'game': 'class'})
+    elif dataset_name == 'HAR' or dataset_name == 'Land-use' or dataset_name == 'Walking':
+        df = df.rename(columns={'Class': 'class'})
+
+    return df
+
 
 if __name__ == "__main__":
-    df = pd.read_csv("./datasets/Avila.csv")
-    df['class'] = df['V11']
-    df = df.drop(columns=['V11'])
+    parser = argparse.ArgumentParser(description='One-vs-Rest Quantification')
+    parser.add_argument('-dts', '--dataset', required=True, help='Path to the dataset CSV file')
+    args = parser.parse_args()
+    
+    dataset_path = args.dataset
+    dataset_name = dataset_path.split('/')[-1].split('.')[0]
+    df = pd.read_csv(dataset_path)
+
+    df = pre_process_dts(df)
 
     train_df, test_df = train_test_split(df, test_size=0.5, stratify=df['class'], random_state=42)
     # train_df, train_scaler = scale_dataset(train_df)
@@ -270,4 +287,4 @@ if __name__ == "__main__":
 
     # Write to CSV
     results_df = pd.DataFrame(rows).round(2)
-    results_df.to_csv('avila_results.csv', index=False)
+    results_df.to_csv(f'./ovr_results/{dataset_name}_results.csv', index=False)
