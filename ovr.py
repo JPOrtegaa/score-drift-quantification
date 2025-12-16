@@ -169,7 +169,6 @@ def handle_batch_results(batch_result, batch_df, quantifiers):
         # Normalize predictions to sum to 1
         total = sum(class_predictions.values())
         normalized_predictions = {cls: pred / total if total > 0 else 0 for cls, pred in class_predictions.items()}
-        # pdb.set_trace()
 
         # Compute normalized cross-entropy
         eps = 1e-10
@@ -228,11 +227,11 @@ if __name__ == "__main__":
     dataset_name = dataset_path.split('/')[-1].split('.')[0]
     df = pd.read_csv(dataset_path)
 
-    df = pre_process_dts(df)
+    df = pre_process_dts(df, dataset_name)
 
     train_df, test_df = train_test_split(df, test_size=0.5, stratify=df['class'], random_state=42)
-    # train_df, train_scaler = scale_dataset(train_df)
-    # test_df, _ = scale_dataset(test_df, scaler=train_scaler)
+    train_df, train_scaler = scale_dataset(train_df)
+    test_df, _ = scale_dataset(test_df, scaler=train_scaler)
     
     trains = binarize_dataset(train_df)
     tests = binarize_dataset(test_df)
