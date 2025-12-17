@@ -257,10 +257,8 @@ if __name__ == "__main__":
     dataset_path = args.dataset
     dataset_name = dataset_path.split('/')[-1].split('.')[0]
     df = pd.read_csv(dataset_path)
-    pdb.set_trace()
 
     df = pre_process_dts(df, dataset_name)
-    pdb.set_trace()
 
     train_df, test_df = train_test_split(df, test_size=0.5, stratify=df['class'], random_state=42)
     train_df, train_scaler = scale_dataset(train_df)
