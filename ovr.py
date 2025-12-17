@@ -3,7 +3,7 @@ import numpy as np
 
 from mlquantify.model_selection import UPP
 
-from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import OrdinalEncoder, StandardScaler
 from sklearn.model_selection import train_test_split, StratifiedKFold
 from sklearn.linear_model import LogisticRegression
 
@@ -210,10 +210,41 @@ def test_one_vs_rest_classifiers(tests, test_df, classifiers, quantifiers):
 
 def pre_process_dts(df, dataset_name):
 
-    if dataset_name == 'Chess game':
+    if dataset_name == 'Chessgame':
         df = df.rename(columns={'game': 'class'})
+
+        # Transform categorical columns (chess board letters) to numerical
+        categorical_cols = ['white_king_col', 'white_rook_col', 'black_king_col']
+        for col in categorical_cols:
+            if col in df.columns:
+                # Convert letters to numbers: a->1, b->2, c->3, ...
+                df[col] = df[col].apply(lambda x: ord(x.lower()) - ord('a') + 1 if isinstance(x, str) else x)
+        
     elif dataset_name == 'HAR' or dataset_name == 'Land-use' or dataset_name == 'Walking':
         df = df.rename(columns={'Class': 'class'})
+
+    elif dataset_name == 'Mosquitoes':
+        df = df.drop(columns=['sensor_id', 'file', 'time_elapsed'], errors='ignore')
+
+    elif dataset_name == 'Nursery':
+        # Define columns in the correct order
+        feature_cols = ['parents', 'has_nurs', 'form', 'children', 'housing', 'finance', 'social', 'health']
+        
+        # Define the categories with the desired order for each column
+        categories = [
+            ['usual', 'pretentious', 'great_pret'],  # parents
+            ['proper', 'less_proper', 'improper', 'critical', 'very_crit'],  # has_nurs
+            ['foster', 'incomplete', 'complete', 'completed'],  # form
+            ['1', '2', '3', 'more'],  # children
+            ['convenient', 'less_conv', 'critical'],  # housing
+            ['convenient', 'inconv'],  # finance
+            ['nonprob', 'slightly_prob', 'problematic'],  # social
+            ['not_recom', 'recommended', 'priority']  # health
+        ]
+
+        # Initialize the OrdinalEncoder with the specified categories
+        ordinal_encoder = OrdinalEncoder(categories=categories)
+        df[feature_cols] = ordinal_encoder.fit_transform(df[feature_cols])
 
     return df
 
@@ -226,8 +257,10 @@ if __name__ == "__main__":
     dataset_path = args.dataset
     dataset_name = dataset_path.split('/')[-1].split('.')[0]
     df = pd.read_csv(dataset_path)
+    pdb.set_trace()
 
     df = pre_process_dts(df, dataset_name)
+    pdb.set_trace()
 
     train_df, test_df = train_test_split(df, test_size=0.5, stratify=df['class'], random_state=42)
     train_df, train_scaler = scale_dataset(train_df)
