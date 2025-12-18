@@ -246,6 +246,9 @@ def pre_process_dts(df, dataset_name):
         ordinal_encoder = OrdinalEncoder(categories=categories)
         df[feature_cols] = ordinal_encoder.fit_transform(df[feature_cols])
 
+        # Only 2 instances of recommend class, remove it
+        df = df[df['class'] != 'recommend']
+
     return df
 
 
