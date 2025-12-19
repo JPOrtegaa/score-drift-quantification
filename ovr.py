@@ -169,13 +169,6 @@ def handle_batch_results(batch_result, batch_df, quantifiers):
         # Normalize predictions to sum to 1
         total = sum(class_predictions.values())
         normalized_predictions = {cls: pred / total if total > 0 else 0 for cls, pred in class_predictions.items()}
-
-        # Compute normalized cross-entropy
-        eps = 1e-10
-        cross_entropy = -sum(real_prevalence.get(cls, 0) * math.log(normalized_predictions[cls] + eps) 
-                             for cls in normalized_predictions)
-        max_entropy = math.log(len(normalized_predictions))
-        normalized_ce = cross_entropy / max_entropy if max_entropy > 0 else 0
         
         quantifier_results[q] = {
             'predictions': class_predictions,
