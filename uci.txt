@@ -1,0 +1,2 @@
+python ovr.py -dts datasets/uci/uci_42123_article_influence.csv
+python ovr.py -dts datasets/uci/wine.csv

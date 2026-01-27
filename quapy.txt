@@ -1,0 +1,5 @@
+python ovr.py -dts datasets/quapy_data/academic-success.csv
+python ovr.py -dts datasets/quapy_data/digits.csv
+python ovr.py -dts datasets/quapy_data/dry-bean.csv
+python ovr.py -dts datasets/quapy_data/letter.csv
+python ovr.py -dts datasets/quapy_data/wine-quality.csv

@@ -1,5 +1,7 @@
 import pandas as pd
 import numpy as np
+import sys
+import os
 
 from mlquantify.model_selection import UPP
 
@@ -10,6 +12,13 @@ from sklearn.linear_model import LogisticRegression
 import pdb
 
 from tqdm import tqdm
+
+# Import preprocessing functions from different dataset folders
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'datasets', 'kaggle'))
+import datasets.kaggle.preprocess as kaggle_preprocess
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'datasets', 'openml'))
+import datasets.openml.preprocess as openml_preprocess
 
 from methods.quantifiers import (
     CC,
@@ -201,47 +210,58 @@ def test_one_vs_rest_classifiers(tests, test_df, classifiers, quantifiers):
 
     return all_results
 
-def pre_process_dts(df, dataset_name):
-
-    if dataset_name == 'Chessgame':
+def pre_process_dts(df, dataset_name, dataset_path):
+    # Mapping of dataset names to preprocessing functions
+    kaggle_datasets = {
+        'cirrhosis': kaggle_preprocess.preprocess_cirrhosis,
+        'predictive_maintenance': kaggle_preprocess.preprocess_predictive_maintenance,
+        'star_classification': kaggle_preprocess.preprocess_star_classification,
+        'Student_performance_data_': kaggle_preprocess.preprocess_student_performance,
+        'zoo': kaggle_preprocess.preprocess_zoo,
+        'healthcare': kaggle_preprocess.preprocess_healthcare,
+        'music_genre': kaggle_preprocess.preprocess_music_genre,
+        'customer_segmentation': kaggle_preprocess.preprocess_customer_segmentation,
+    }
+    
+    openml_datasets = {
+        'dataset_313_spectrometer': openml_preprocess.preprocess_spectrometer,
+        'dataset_4552_BachChoralHarmony': openml_preprocess.preprocess_bach_choral_harmony,
+    }
+    
+    # Apply preprocessing based on dataset name
+    if dataset_name in kaggle_datasets:
+        df = kaggle_datasets[dataset_name](df)
+    elif dataset_name in openml_datasets:
+        df = openml_datasets[dataset_name](df)
+        
+    # Keep existing preprocessing for other datasets
+    elif dataset_name == 'Chessgame':
         df = df.rename(columns={'game': 'class'})
-
         # Transform categorical columns (chess board letters) to numerical
         categorical_cols = ['white_king_col', 'white_rook_col', 'black_king_col']
         for col in categorical_cols:
             if col in df.columns:
-                # Convert letters to numbers: a->1, b->2, c->3, ...
                 df[col] = df[col].apply(lambda x: ord(x.lower()) - ord('a') + 1 if isinstance(x, str) else x)
-        
     elif dataset_name == 'HAR' or dataset_name == 'Land-use' or dataset_name == 'Walking':
         df = df.rename(columns={'Class': 'class'})
-
     elif dataset_name == 'Mosquitoes':
         df = df.drop(columns=['sensor_id', 'file', 'time_elapsed'], errors='ignore')
-
     elif dataset_name == 'Nursery':
-        # Define columns in the correct order
         feature_cols = ['parents', 'has_nurs', 'form', 'children', 'housing', 'finance', 'social', 'health']
-        
-        # Define the categories with the desired order for each column
         categories = [
-            ['usual', 'pretentious', 'great_pret'],  # parents
-            ['proper', 'less_proper', 'improper', 'critical', 'very_crit'],  # has_nurs
-            ['foster', 'incomplete', 'complete', 'completed'],  # form
-            ['1', '2', '3', 'more'],  # children
-            ['convenient', 'less_conv', 'critical'],  # housing
-            ['convenient', 'inconv'],  # finance
-            ['nonprob', 'slightly_prob', 'problematic'],  # social
-            ['not_recom', 'recommended', 'priority']  # health
+            ['usual', 'pretentious', 'great_pret'],
+            ['proper', 'less_proper', 'improper', 'critical', 'very_crit'],
+            ['foster', 'incomplete', 'complete', 'completed'],
+            ['1', '2', '3', 'more'],
+            ['convenient', 'less_conv', 'critical'],
+            ['convenient', 'inconv'],
+            ['nonprob', 'slightly_prob', 'problematic'],
+            ['not_recom', 'recommended', 'priority']
         ]
-
-        # Initialize the OrdinalEncoder with the specified categories
         ordinal_encoder = OrdinalEncoder(categories=categories)
         df[feature_cols] = ordinal_encoder.fit_transform(df[feature_cols])
-
-        # Only 2 instances of recommend class, remove it
         df = df[df['class'] != 'recommend']
-
+    
     return df
 
 
@@ -254,7 +274,7 @@ if __name__ == "__main__":
     dataset_name = dataset_path.split('/')[-1].split('.')[0]
     df = pd.read_csv(dataset_path)
 
-    df = pre_process_dts(df, dataset_name)
+    df = pre_process_dts(df, dataset_name, dataset_path)
 
     train_df, test_df = train_test_split(df, test_size=0.5, stratify=df['class'], random_state=42)
     train_df, train_scaler = scale_dataset(train_df)
