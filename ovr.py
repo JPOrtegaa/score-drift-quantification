@@ -12,6 +12,7 @@ from sklearn.linear_model import LogisticRegression
 import pdb
 
 from tqdm import tqdm
+from joblib import Parallel, delayed
 
 # Import preprocessing functions from different dataset folders
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'datasets', 'kaggle'))
@@ -81,18 +82,33 @@ def get_quantifier_map(test_scores, tpr_fpr, pos_scores, neg_scores):
 def scale_dataset(df, scaler=None):
     df_scaled = df.copy()
     
-    # Get feature columns (all except last)
-    feature_cols = df_scaled.columns[:-1]
+    # Get feature columns (all except 'class')
+    feature_cols = [col for col in df_scaled.columns if col != 'class']
     
-    if scaler is None:
-        scaler = StandardScaler()
-        # Fit and transform, assign as float
-        df_scaled[feature_cols] = scaler.fit_transform(df_scaled[feature_cols])
-    else:
-        # Transform only, assign as float
-        df_scaled[feature_cols] = scaler.transform(df_scaled[feature_cols])
+    # Check if scaling is needed (if data is not already scaled)
+    needs_scaling = False
 
-    return df_scaled, scaler
+    # More lenient check - consider range and variance
+    if scaler is None:  # Only check on training data
+        for col in feature_cols:
+            col_range = df_scaled[col].max() - df_scaled[col].min()
+            col_std = df_scaled[col].std()
+            # If range > 10 or std differs significantly from 1, scale it
+            if col_range > 10 or abs(col_std - 1.0) > 0.5:
+                needs_scaling = True
+                break
+
+    if needs_scaling or scaler is not None:
+        if scaler is None:
+            scaler = StandardScaler()
+            df_scaled[feature_cols] = scaler.fit_transform(df_scaled[feature_cols])
+        else:
+            # If scaler is provided, use it
+            df_scaled[feature_cols] = scaler.transform(df_scaled[feature_cols])
+    
+    scaled_flag = needs_scaling or (scaler is not None)
+
+    return df_scaled, scaler, scaled_flag
 
 def binarize_dataset(train_df):
     trains = {}
@@ -110,7 +126,7 @@ def train_classifier(train_df):
     y_train = train_df['class']
     
     skf = StratifiedKFold(n_splits=10, shuffle=True, random_state=42)
-    clf = LogisticRegression(random_state=42)
+    clf = LogisticRegression(random_state=42, max_iter=2000, n_jobs=-1)
     
     fold_scores = []
     for train_idx, val_idx in skf.split(X_train, y_train):
@@ -186,8 +202,28 @@ def handle_batch_results(batch_result, batch_df, quantifiers):
         }
     return quantifier_results
 
-def test_one_vs_rest_classifiers(tests, test_df, classifiers, quantifiers):
+def process_single_batch(idx, tests, test_df, classifiers, quantifiers):
+    """Process a single batch - designed for parallel execution."""
+    batch_result = {}
+    for cls in tests:
+        test = tests[cls]
+        classifier = classifiers[cls]
+        binary_batch = test.iloc[idx]
+        batch_result[cls] = test_classifier(binary_batch, classifier, quantifiers)
+    
+    result = handle_batch_results(batch_result, test_df.iloc[idx], quantifiers)
+    return result
 
+
+def test_one_vs_rest_classifiers(tests, test_df, classifiers, quantifiers, n_jobs=-1):
+    """
+    Test classifiers using parallel processing.
+    
+    Parameters:
+    -----------
+    n_jobs : int, default=-1
+        Number of CPU cores to use. -1 means all available cores.
+    """
     upp = UPP(batch_size=100, n_prevalences=100, repeats=10, random_state=42)
 
     X = test_df.drop(columns=['class'])
@@ -196,17 +232,14 @@ def test_one_vs_rest_classifiers(tests, test_df, classifiers, quantifiers):
     # Calculate total number of batches
     total_batches = upp.n_prevalences * upp.repeats
     
-    all_results = []
-    for idx in tqdm(upp.split(X, y), total=total_batches, desc="Processing batches", unit="batch"):
-        batch_result = {}
-        for cls in tests:
-            test = tests[cls]
-            classifier = classifiers[cls]
-            binary_batch = test.iloc[idx]
-            batch_result[cls] = test_classifier(binary_batch, classifier, quantifiers)
-
-        result = handle_batch_results(batch_result, test_df.iloc[idx], quantifiers)
-        all_results.append(result)
+    # Collect all batch indices first
+    batch_indices = list(upp.split(X, y))
+    
+    # Process batches in parallel
+    all_results = Parallel(n_jobs=n_jobs, backend='loky')(
+        delayed(process_single_batch)(idx, tests, test_df, classifiers, quantifiers)
+        for idx in tqdm(batch_indices, total=total_batches, desc="Processing batches", unit="batch")
+    )
 
     return all_results
 
@@ -216,11 +249,11 @@ def pre_process_dts(df, dataset_name, dataset_path):
         'cirrhosis': kaggle_preprocess.preprocess_cirrhosis,
         'predictive_maintenance': kaggle_preprocess.preprocess_predictive_maintenance,
         'star_classification': kaggle_preprocess.preprocess_star_classification,
-        'Student_performance_data_': kaggle_preprocess.preprocess_student_performance,
+        'Student_performance_data': kaggle_preprocess.preprocess_student_performance,
         'zoo': kaggle_preprocess.preprocess_zoo,
         'healthcare': kaggle_preprocess.preprocess_healthcare,
         'music_genre': kaggle_preprocess.preprocess_music_genre,
-        'customer_segmentation': kaggle_preprocess.preprocess_customer_segmentation,
+        'customer_segmentation': kaggle_preprocess.preprocess_customer_segmentation
     }
     
     openml_datasets = {
@@ -261,24 +294,27 @@ def pre_process_dts(df, dataset_name, dataset_path):
         ordinal_encoder = OrdinalEncoder(categories=categories)
         df[feature_cols] = ordinal_encoder.fit_transform(df[feature_cols])
         df = df[df['class'] != 'recommend']
+
+    # Drop missing values from the entire dataset (both features and target)
+    df = df.dropna()
     
     return df
 
 
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description='One-vs-Rest Quantification')
-    parser.add_argument('-dts', '--dataset', required=True, help='Path to the dataset CSV file')
-    args = parser.parse_args()
-    
-    dataset_path = args.dataset
+def process_single_dataset(dataset_path):
+    """Process a single dataset and save results."""
     dataset_name = dataset_path.split('/')[-1].split('.')[0]
+    print(f"\n{'='*60}")
+    print(f"Processing dataset: {dataset_name}")
+    print(f"{'='*60}")
+    
     df = pd.read_csv(dataset_path)
-
     df = pre_process_dts(df, dataset_name, dataset_path)
 
     train_df, test_df = train_test_split(df, test_size=0.5, stratify=df['class'], random_state=42)
-    train_df, train_scaler = scale_dataset(train_df)
-    test_df, _ = scale_dataset(test_df, scaler=train_scaler)
+    train_df, train_scaler, scaled_flag = scale_dataset(train_df)
+    if scaled_flag:
+        test_df, _, _ = scale_dataset(test_df, scaler=train_scaler)
     
     trains = binarize_dataset(train_df)
     tests = binarize_dataset(test_df)
@@ -308,7 +344,7 @@ if __name__ == "__main__":
         "SMM_syn",
         "HDy_syn",
     ]
-    results = test_one_vs_rest_classifiers(tests, test_df, classifiers, quantifiers)
+    results = test_one_vs_rest_classifiers(tests, test_df, classifiers, quantifiers, n_jobs=-1)
 
     # Flatten results into rows for CSV
     rows = []
@@ -333,4 +369,48 @@ if __name__ == "__main__":
 
     # Write to CSV
     results_df = pd.DataFrame(rows).round(2)
-    results_df.to_csv(f'./ovr_results/{dataset_name}_results.csv', index=False)
+    output_path = f'./ovr_results/{dataset_name}_results.csv'
+    results_df.to_csv(output_path, index=False)
+    print(f"Results saved to: {output_path}")
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description='One-vs-Rest Quantification')
+    parser.add_argument('-dts', '--dataset', required=False, help='Path to the dataset CSV file')
+    parser.add_argument('-exp', '--experiments', required=False, help='Path to the experiments TXT file')
+
+    args = parser.parse_args()
+    
+    # Check that at least one argument is provided
+    if not args.dataset and not args.experiments:
+        parser.error("At least one of -dts/--dataset or -exp/--experiments is required")
+    
+    # Process experiments file if provided
+    if args.experiments:
+        with open(args.experiments, 'r') as f:
+            commands = [line.strip() for line in f if line.strip() and not line.strip().startswith('#')]
+        
+        print(f"Found {len(commands)} datasets to process")
+        
+        for i, command in enumerate(commands, 1):
+            # Parse the command to extract the dataset path
+            # Expected format: python ovr.py -dts datasets/kaggle/cirrhosis.csv
+            parts = command.split()
+            if '-dts' in parts:
+                dts_index = parts.index('-dts')
+                if dts_index + 1 < len(parts):
+                    dataset_path = parts[dts_index + 1]
+                    print(f"\n[{i}/{len(commands)}] Processing: {dataset_path}")
+                    try:
+                        process_single_dataset(dataset_path)
+                    except Exception as e:
+                        print(f"ERROR processing {dataset_path}: {e}")
+                        continue
+        
+        print(f"\n{'='*60}")
+        print(f"Completed processing all {len(commands)} datasets")
+        print(f"{'='*60}")
+    
+    # Process single dataset if provided
+    elif args.dataset:
+        process_single_dataset(args.dataset)
