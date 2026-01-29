@@ -9,6 +9,22 @@ def CC(test, thr=0.5):
 
     return np.array([result, 1 - result], dtype=float)
 
+def CC2(test):
+    # Count which column has the maximum value for each row
+    max_indices = np.argmax(test, axis=1)
+    
+    # Count occurrences of each column index
+    num_columns = test.shape[1]
+    result = np.zeros(num_columns)
+    
+    for idx in max_indices:
+        result[idx] += 1
+    
+    # Normalize to get proportions
+    result = result / len(test)
+    
+    return result.astype(float)
+
 def ACC(test, TprFpr, thr=0.5):
     dC = CC(test)  # Implement CC function separately
 
