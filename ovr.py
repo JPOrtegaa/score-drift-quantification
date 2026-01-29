@@ -21,6 +21,9 @@ import datasets.kaggle.preprocess as kaggle_preprocess
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'datasets', 'openml'))
 import datasets.openml.preprocess as openml_preprocess
 
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'datasets', 'uci'))
+import datasets.uci.preprocess as uci_preprocess
+
 from methods.quantifiers import (
     CC,
     ACC,
@@ -260,12 +263,18 @@ def pre_process_dts(df, dataset_name, dataset_path):
         'dataset_313_spectrometer': openml_preprocess.preprocess_spectrometer,
         'dataset_4552_BachChoralHarmony': openml_preprocess.preprocess_bach_choral_harmony,
     }
+
+    uci_datasets = {
+        'uci_42123_article_influence': uci_preprocess.preprocess_article_influence
+    }
     
     # Apply preprocessing based on dataset name
     if dataset_name in kaggle_datasets:
         df = kaggle_datasets[dataset_name](df)
     elif dataset_name in openml_datasets:
         df = openml_datasets[dataset_name](df)
+    elif dataset_name in uci_datasets:
+        df = uci_datasets[dataset_name](df)
         
     # Keep existing preprocessing for other datasets
     elif dataset_name == 'Chessgame':
