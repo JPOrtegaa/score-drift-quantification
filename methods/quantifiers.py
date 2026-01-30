@@ -231,16 +231,13 @@ def PCC(ts):
 
     return np.array([result, 1 - result], dtype=float)
 
-def PACC(ts, TprFpr, thr):
+def PACC(ts, pos_scores, neg_scores):
     dC = PCC(ts)
 
-    tpr_fpr_row = TprFpr[TprFpr[:, 0] == thr, 1:3].astype(float)
-    if tpr_fpr_row.size == 0:
-        raise ValueError("Threshold value not found in TprFpr.")
+    pos_mean = np.mean(pos_scores)
+    neg_mean = np.mean(neg_scores)
 
-    tpr, fpr = tpr_fpr_row[0]
-
-    result = (dC[0] - fpr) / (tpr - fpr) if (tpr - fpr) != 0 else 0
+    result = (dC[0] - neg_mean) / (pos_mean - neg_mean) if (pos_mean - neg_mean) != 0 else 0
     result = max(0, min(result, 1))
 
     return np.array([result, 1 - result], dtype=float)

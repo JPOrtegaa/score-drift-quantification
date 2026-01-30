@@ -4,6 +4,11 @@ import sys
 import os
 
 from mlquantify.model_selection import UPP
+from mlquantify.adjust_counting import GAC, GPAC, FM
+from mlquantify.neighbors import KDEyHD, KDEyCS, KDEyML
+from mlquantify.likelihood import EMQ
+from mlquantify.mixture import HDx
+from mlquantify.neighbors import PWK
 
 from sklearn.preprocessing import OrdinalEncoder, StandardScaler
 from sklearn.model_selection import train_test_split, StratifiedKFold
@@ -21,11 +26,9 @@ import datasets.kaggle.preprocess as kaggle_preprocess
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'datasets', 'openml'))
 import datasets.openml.preprocess as openml_preprocess
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'datasets', 'uci'))
-import datasets.uci.preprocess as uci_preprocess
-
 from methods.quantifiers import (
     CC,
+    CC2,
     ACC,
     PCC,
     PACC,
@@ -142,6 +145,7 @@ def train_classifier(train_df):
     
     clf.fit(X_train, y_train)
     validation_scores = np.vstack(fold_scores)
+    pdb.set_trace()
     tpr_fpr = getTPRandFPRbyThreshold(validation_scores)
     pos_scores = validation_scores[validation_scores[:, 2] == 1, 1].astype(float)
     neg_scores = validation_scores[validation_scores[:, 2] == 0, 1].astype(float)
@@ -263,20 +267,17 @@ def pre_process_dts(df, dataset_name, dataset_path):
         'dataset_313_spectrometer': openml_preprocess.preprocess_spectrometer,
         'dataset_4552_BachChoralHarmony': openml_preprocess.preprocess_bach_choral_harmony,
     }
-
-    uci_datasets = {
-        'uci_42123_article_influence': uci_preprocess.preprocess_article_influence
-    }
     
+    # pdb.set_trace()
     # Apply preprocessing based on dataset name
     if dataset_name in kaggle_datasets:
         df = kaggle_datasets[dataset_name](df)
     elif dataset_name in openml_datasets:
         df = openml_datasets[dataset_name](df)
-    elif dataset_name in uci_datasets:
-        df = uci_datasets[dataset_name](df)
         
     # Keep existing preprocessing for other datasets
+    elif dataset_name == 'Avila':
+        df = df.rename(columns={'V11': 'class'})
     elif dataset_name == 'Chessgame':
         df = df.rename(columns={'game': 'class'})
         # Transform categorical columns (chess board letters) to numerical
@@ -329,6 +330,10 @@ def process_single_dataset(dataset_path):
     tests = binarize_dataset(test_df)
 
     classifiers = train_one_vs_rest_classifiers(trains)
+    classifier, _, pos_scores, neg_scores = train_classifier(train_df)
+    pdb.set_trace()
+    
+
     quantifiers = [
         "CC",
         "PCC",
@@ -352,6 +357,15 @@ def process_single_dataset(dataset_path):
         "MS2_syn",
         "SMM_syn",
         "HDy_syn",
+        "PWK",
+        "HDx",
+        "GAC",
+        "GPAC",
+        "FM",
+        "EMQ",
+        "KDEyHD",
+        "KDEyCS",
+        "KDEyML",
     ]
     results = test_one_vs_rest_classifiers(tests, test_df, classifiers, quantifiers, n_jobs=-1)
 
