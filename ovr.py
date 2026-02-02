@@ -85,6 +85,35 @@ def get_quantifier_map(test_scores, tpr_fpr, pos_scores, neg_scores):
         "HDy_syn": lambda: HDySyn(test_scores, MF=np.arange(0.1, 1.0, 0.2))[0],
     }
 
+
+def get_multiclass_quantifier_map(y_train, X_test, priors, posteriors):
+    """Returns a dictionary mapping multiclass quantifier names to their callable functions."""
+
+    # Initialize quantifiers that use aggregate pattern
+    gac = GAC()
+    gpac = GPAC()
+    emq = EMQ()
+    kde = KDEyHD()
+    kde_cs = KDEyCS()
+    kde_ml = KDEyML()
+    fm = FM()
+
+    # Get hard predictions for GAC
+    train_preds = np.argmax(priors, axis=1)
+    test_preds = np.argmax(posteriors, axis=1)
+
+    return {
+        "GAC": lambda: gac.aggregate(train_predictions=train_preds, predictions=test_preds, y_train_values=y_train),
+        "GPAC": lambda: gpac.aggregate(train_predictions=priors, predictions=posteriors, y_train_values=y_train),
+        "EMQ": lambda: emq.aggregate(predictions=posteriors, y_train=y_train),
+        "KDEyHD": lambda: kde.aggregate(train_predictions=priors, predictions=posteriors, train_y_values=y_train),
+        "KDEyCS": lambda: kde_cs.aggregate(train_predictions=priors, predictions=posteriors, train_y_values=y_train),
+        "KDEyML": lambda: kde_ml.aggregate(train_predictions=priors, predictions=posteriors, train_y_values=y_train),
+        "FM": lambda: fm.aggregate(train_predictions=priors, predictions=posteriors, y_train_values=y_train),
+        "HDx": lambda: hdx.predict(X=X_test),
+        "PWK": lambda: pwk.predict(X=X_test),
+    }
+
 def scale_dataset(df, scaler=None):
     df_scaled = df.copy()
     
@@ -173,23 +202,50 @@ def train_one_vs_rest_classifiers(trains):
 
     return classifiers
 
-def test_classifier(binary_batch, classifier, quantifiers):
-    clf = classifier["model"]
-    tpr_fpr = classifier["tpr_fpr"]
-    pos_scores = classifier["pos_scores"]
-    neg_scores = classifier["neg_scores"]
+def test_classifier(batch, classifier, quantifiers, validation_scores=None):
 
-    X_test = binary_batch.drop(columns=['class'])
-    test_scores = clf.predict_proba(X_test)[:, 1]
+    if isinstance(classifier, dict): # Binary
+        clf = classifier["model"]
+        tpr_fpr = classifier["tpr_fpr"]
+        pos_scores = classifier["pos_scores"]
+        neg_scores = classifier["neg_scores"]
 
-    # Get quantifier map with all necessary parameters
-    quantifier_map = get_quantifier_map(test_scores, tpr_fpr, pos_scores, neg_scores)
+        X_test = batch.drop(columns=['class'])
+        test_scores = clf.predict_proba(X_test)[:, 1]
 
-    results = {}
-    for q in quantifiers:
-        if q not in quantifier_map:
-            raise ValueError(f"Unknown quantifier: {q}")
-        results[q] = quantifier_map[q]()[1]
+        # Get quantifier map with all necessary parameters
+        quantifier_map = get_quantifier_map(test_scores, tpr_fpr, pos_scores, neg_scores)
+
+        results = {}
+        for q in quantifiers:
+            if q not in quantifier_map:
+                raise ValueError(f"Unknown quantifier: {q}")
+            results[q] = quantifier_map[q]()[1]
+
+    else: # Multiclass
+        X_test = batch.drop(columns=['class'])
+        test_scores = classifier.predict_proba(X_test)
+
+        # Multiclass quantifiers
+        quantifier_map = {
+            "PWK": lambda: PWK(test_scores),
+            "HDx": lambda: HDx(test_scores)[0],
+            "GAC": lambda: GAC(test_scores),
+            "GPAC": lambda: GPAC(test_scores),
+            "FM": lambda: FM(test_scores),
+            "EMQ": lambda: EMQ(test_scores),
+            "KDEyHD": lambda: KDEyHD(test_scores)[0],
+            "KDEyCS": lambda: KDEyCS(test_scores)[0],
+            "KDEyML": lambda: KDEyML(test_scores)[0],
+        }
+
+        multiclass_map = get_multiclass_quantifier_map(y_train, X_test, train_proba, test_proba)
+
+        results = {}
+        for q in quantifiers:
+            if q not in multiclass_map:
+                raise ValueError(f"Unknown quantifier: {q}")
+            results[q] = multiclass_map[q]()
 
     return results
 
@@ -223,14 +279,11 @@ def process_single_batch(idx, tests, test_df, classifiers, quantifiers, classifi
         binary_test = tests[cls]
         binary_classifier = classifiers[cls]
         binary_batch = binary_test.iloc[idx]
-        batch_result[cls] = test_classifier(binary_batch, binary_classifier, quantifiers) # put binary quantifiers only.
+        batch_result[cls] = test_classifier(binary_batch, binary_classifier, quantifiers['binary']) # put binary quantifiers only.
     
     batch = test_df.iloc[idx]
     # Also get multiclass quantifiers
-    multiclass_result = test_classifier(batch, classifier, quantifiers) # multiclass quantifiers
-
-
-    test_classifier()
+    multiclass_result = test_classifier(batch, classifier, quantifiers['multiclass'], validation_scores) # multiclass quantifiers
 
 
     result = handle_batch_results(batch_result, test_df.iloc[idx], quantifiers)
@@ -256,6 +309,8 @@ def test_one_vs_rest_classifiers(tests, test_df, classifiers, quantifiers, class
     
     # Collect all batch indices first
     batch_indices = list(upp.split(X, y))
+
+    
     
     # Process batches in parallel
     all_results = Parallel(n_jobs=n_jobs, backend='loky')(
@@ -347,42 +402,48 @@ def process_single_dataset(dataset_path):
     classifiers = train_one_vs_rest_classifiers(trains)
     # pdb.set_trace()
     classifier, _, _, _, validation_scores = train_classifier(train_df)
-    pdb.set_trace()
+    # pdb.set_trace()
     
+    quantifiers = {
+        "binary": [
+            "CC",
+            "PCC",
+            "ACC",
+            "PACC",
+            "T50",
+            "MAX",
+            "MS",
+            "MS2",
+            "X",
+            "SMM",
+            "DyS",
+            "DySyn",
+            "HDy",
+            "ACC_syn",
+            "PACC_syn",
+            "X_syn",
+            "MAX_syn",
+            "T50_syn",
+            "MS_syn",
+            "MS2_syn",
+            "SMM_syn",
+            "HDy_syn",
+        ],
+        "multiclass": [
+            "PWK",
+            "HDx",
+            "GAC",
+            "GPAC",
+            "FM",
+            "EMQ",
+            "KDEyHD",
+            "KDEyCS",
+            "KDEyML",
+        ]
+    }
+    # pdb.set_trace()
 
-    quantifiers = [
-        "CC",
-        "PCC",
-        "ACC",
-        "PACC",
-        "T50",
-        "MAX",
-        "MS",
-        "MS2",
-        "X",
-        "SMM",
-        "DyS",
-        "DySyn",
-        "HDy",
-        "ACC_syn",
-        "PACC_syn",
-        "X_syn",
-        "MAX_syn",
-        "T50_syn",
-        "MS_syn",
-        "MS2_syn",
-        "SMM_syn",
-        "HDy_syn",
-        "PWK",
-        "HDx",
-        "GAC",
-        "GPAC",
-        "FM",
-        "EMQ",
-        "KDEyHD",
-        "KDEyCS",
-        "KDEyML",
-    ]
+
     results = test_one_vs_rest_classifiers(tests, test_df, classifiers, quantifiers, classifier, validation_scores, n_jobs=-1)
 
     # Flatten results into rows for CSV
