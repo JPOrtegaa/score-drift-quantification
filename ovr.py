@@ -145,18 +145,25 @@ def train_classifier(train_df):
     
     clf.fit(X_train, y_train)
     validation_scores = np.vstack(fold_scores)
-    pdb.set_trace()
-    tpr_fpr = getTPRandFPRbyThreshold(validation_scores)
-    pos_scores = validation_scores[validation_scores[:, 2] == 1, 1].astype(float)
-    neg_scores = validation_scores[validation_scores[:, 2] == 0, 1].astype(float)
 
-    return clf, tpr_fpr, pos_scores, neg_scores
+    if len(y_train.unique()) > 2: # Multiclass
+        validation_scores = validation_scores[:, :-1]  # Remove last column (labels)
+        tpr_fpr = None
+        pos_scores = None
+        neg_scores = None
+        
+    else: # Binary
+        tpr_fpr = getTPRandFPRbyThreshold(validation_scores)
+        pos_scores = validation_scores[validation_scores[:, 2] == 1, 1].astype(float)
+        neg_scores = validation_scores[validation_scores[:, 2] == 0, 1].astype(float)
+
+    return clf, tpr_fpr, pos_scores, neg_scores, validation_scores
 
 def train_one_vs_rest_classifiers(trains):
     classifiers = {}
 
     for cls, bin_train_df in trains.items():
-        clf, tpr_fpr, pos_scores, neg_scores = train_classifier(bin_train_df)
+        clf, tpr_fpr, pos_scores, neg_scores, _ = train_classifier(bin_train_df)
         classifiers[cls] = {
             "model": clf,
             "tpr_fpr": tpr_fpr,
@@ -209,20 +216,28 @@ def handle_batch_results(batch_result, batch_df, quantifiers):
         }
     return quantifier_results
 
-def process_single_batch(idx, tests, test_df, classifiers, quantifiers):
+def process_single_batch(idx, tests, test_df, classifiers, quantifiers, classifier, validation_scores):
     """Process a single batch - designed for parallel execution."""
     batch_result = {}
     for cls in tests:
-        test = tests[cls]
-        classifier = classifiers[cls]
-        binary_batch = test.iloc[idx]
-        batch_result[cls] = test_classifier(binary_batch, classifier, quantifiers)
+        binary_test = tests[cls]
+        binary_classifier = classifiers[cls]
+        binary_batch = binary_test.iloc[idx]
+        batch_result[cls] = test_classifier(binary_batch, binary_classifier, quantifiers) # put binary quantifiers only.
     
+    batch = test_df.iloc[idx]
+    # Also get multiclass quantifiers
+    multiclass_result = test_classifier(batch, classifier, quantifiers) # multiclass quantifiers
+
+
+    test_classifier()
+
+
     result = handle_batch_results(batch_result, test_df.iloc[idx], quantifiers)
     return result
 
 
-def test_one_vs_rest_classifiers(tests, test_df, classifiers, quantifiers, n_jobs=-1):
+def test_one_vs_rest_classifiers(tests, test_df, classifiers, quantifiers, classifier, validation_scores, n_jobs=-1):
     """
     Test classifiers using parallel processing.
     
@@ -244,7 +259,7 @@ def test_one_vs_rest_classifiers(tests, test_df, classifiers, quantifiers, n_job
     
     # Process batches in parallel
     all_results = Parallel(n_jobs=n_jobs, backend='loky')(
-        delayed(process_single_batch)(idx, tests, test_df, classifiers, quantifiers)
+        delayed(process_single_batch)(idx, tests, test_df, classifiers, quantifiers, classifier, validation_scores)
         for idx in tqdm(batch_indices, total=total_batches, desc="Processing batches", unit="batch")
     )
 
@@ -330,7 +345,8 @@ def process_single_dataset(dataset_path):
     tests = binarize_dataset(test_df)
 
     classifiers = train_one_vs_rest_classifiers(trains)
-    classifier, _, pos_scores, neg_scores = train_classifier(train_df)
+    # pdb.set_trace()
+    classifier, _, _, _, validation_scores = train_classifier(train_df)
     pdb.set_trace()
     
 
@@ -367,7 +383,7 @@ def process_single_dataset(dataset_path):
         "KDEyCS",
         "KDEyML",
     ]
-    results = test_one_vs_rest_classifiers(tests, test_df, classifiers, quantifiers, n_jobs=-1)
+    results = test_one_vs_rest_classifiers(tests, test_df, classifiers, quantifiers, classifier, validation_scores, n_jobs=-1)
 
     # Flatten results into rows for CSV
     rows = []
