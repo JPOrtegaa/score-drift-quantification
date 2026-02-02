@@ -64,7 +64,7 @@ def get_quantifier_map(test_scores, tpr_fpr, pos_scores, neg_scores):
         "CC": lambda: CC(test_scores, thr=0.5),
         "PCC": lambda: PCC(test_scores),
         "ACC": lambda: ACC(test_scores, tpr_fpr, thr=0.5),
-        "PACC": lambda: PACC(test_scores, tpr_fpr, thr=0.5),
+        "PACC": lambda: PACC(test_scores, pos_scores, neg_scores),
         "T50": lambda: T50(test_scores, tpr_fpr),
         "MAX": lambda: MAX(test_scores, tpr_fpr),
         "MS": lambda: MS(test_scores, tpr_fpr),
@@ -86,7 +86,7 @@ def get_quantifier_map(test_scores, tpr_fpr, pos_scores, neg_scores):
     }
 
 
-def get_multiclass_quantifier_map(y_train, X_test, priors, posteriors):
+def get_multiclass_quantifier_map(y_train, X_test, priors, posteriors, qnt_models):
     """Returns a dictionary mapping multiclass quantifier names to their callable functions."""
 
     # Initialize quantifiers that use aggregate pattern
@@ -97,6 +97,8 @@ def get_multiclass_quantifier_map(y_train, X_test, priors, posteriors):
     kde_cs = KDEyCS()
     kde_ml = KDEyML()
     fm = FM()
+    hdx = qnt_models["HDx"]
+    pwk = qnt_models["PWK"]
 
     # Get hard predictions for GAC
     train_preds = np.argmax(priors, axis=1)
@@ -156,6 +158,22 @@ def binarize_dataset(train_df):
 
     return trains
 
+def train_quantifiers(train_df):
+
+    pwk = PWK(n_neighbors=11, n_jobs=-1)
+    hdx = HDx(bins_size=np.linspace(10, 110, 11))
+
+    X_train, y_train = train_df.drop(columns=['class']), train_df['class']
+    pwk.fit(X_train, y_train)
+    hdx.fit(X_train, y_train)
+
+    models = {
+        "PWK": pwk,
+        "HDx": hdx,
+    }
+
+    return models
+
 def train_classifier(train_df):
     X_train = train_df.drop(columns=['class'])
     y_train = train_df['class']
@@ -202,7 +220,7 @@ def train_one_vs_rest_classifiers(trains):
 
     return classifiers
 
-def test_classifier(batch, classifier, quantifiers, validation_scores=None):
+def test_classifier(batch, classifier, quantifiers, validation_scores=None, qnt_models=None, train_df=None):
 
     if isinstance(classifier, dict): # Binary
         clf = classifier["model"]
@@ -223,23 +241,11 @@ def test_classifier(batch, classifier, quantifiers, validation_scores=None):
             results[q] = quantifier_map[q]()[1]
 
     else: # Multiclass
+        y_train = train_df['class']
         X_test = batch.drop(columns=['class'])
         test_scores = classifier.predict_proba(X_test)
 
-        # Multiclass quantifiers
-        quantifier_map = {
-            "PWK": lambda: PWK(test_scores),
-            "HDx": lambda: HDx(test_scores)[0],
-            "GAC": lambda: GAC(test_scores),
-            "GPAC": lambda: GPAC(test_scores),
-            "FM": lambda: FM(test_scores),
-            "EMQ": lambda: EMQ(test_scores),
-            "KDEyHD": lambda: KDEyHD(test_scores)[0],
-            "KDEyCS": lambda: KDEyCS(test_scores)[0],
-            "KDEyML": lambda: KDEyML(test_scores)[0],
-        }
-
-        multiclass_map = get_multiclass_quantifier_map(y_train, X_test, train_proba, test_proba)
+        multiclass_map = get_multiclass_quantifier_map(y_train, X_test, validation_scores, test_scores, qnt_models)
 
         results = {}
         for q in quantifiers:
@@ -249,10 +255,10 @@ def test_classifier(batch, classifier, quantifiers, validation_scores=None):
 
     return results
 
-def handle_batch_results(batch_result, batch_df, quantifiers):
+def handle_batch_results(batch_result, multiclass_result, batch_df, quantifiers):
     # Get real prevalence from batch
     real_prevalence = batch_df['class'].value_counts(normalize=True).sort_index().to_dict()
-    
+
     # Restructure results: one row per quantifier
     quantifier_results = {}
     for q in quantifiers:
@@ -270,9 +276,18 @@ def handle_batch_results(batch_result, batch_df, quantifiers):
             'normalized_predictions': normalized_predictions,
             'real_prevalence': real_prevalence
         }
+
+    # Add multiclass quantifiers
+    for q in multiclass_result:
+        quantifier_results[q] = {
+            'predictions': multiclass_result[q],
+            'normalized_predictions': multiclass_result[q],  # Assuming multiclass predictions are already normalized
+            'real_prevalence': real_prevalence
+        }
+
     return quantifier_results
 
-def process_single_batch(idx, tests, test_df, classifiers, quantifiers, classifier, validation_scores):
+def process_single_batch(idx, train_df, tests, test_df, classifiers, quantifiers, classifier, validation_scores, qnt_models):
     """Process a single batch - designed for parallel execution."""
     batch_result = {}
     for cls in tests:
@@ -283,14 +298,14 @@ def process_single_batch(idx, tests, test_df, classifiers, quantifiers, classifi
     
     batch = test_df.iloc[idx]
     # Also get multiclass quantifiers
-    multiclass_result = test_classifier(batch, classifier, quantifiers['multiclass'], validation_scores) # multiclass quantifiers
+    multiclass_result = test_classifier(batch, classifier, quantifiers['multiclass'], validation_scores, qnt_models, train_df) # multiclass quantifiers
+    
+    result = handle_batch_results(batch_result, multiclass_result, test_df.iloc[idx], quantifiers['binary'])
 
-
-    result = handle_batch_results(batch_result, test_df.iloc[idx], quantifiers)
     return result
 
 
-def test_one_vs_rest_classifiers(tests, test_df, classifiers, quantifiers, classifier, validation_scores, n_jobs=-1):
+def test_one_vs_rest_classifiers(train_df, tests, test_df, classifiers, quantifiers, classifier, validation_scores, qnt_models, n_jobs=-1):
     """
     Test classifiers using parallel processing.
     
@@ -309,12 +324,10 @@ def test_one_vs_rest_classifiers(tests, test_df, classifiers, quantifiers, class
     
     # Collect all batch indices first
     batch_indices = list(upp.split(X, y))
-
-    
     
     # Process batches in parallel
     all_results = Parallel(n_jobs=n_jobs, backend='loky')(
-        delayed(process_single_batch)(idx, tests, test_df, classifiers, quantifiers, classifier, validation_scores)
+        delayed(process_single_batch)(idx, train_df, tests, test_df, classifiers, quantifiers, classifier, validation_scores, qnt_models)
         for idx in tqdm(batch_indices, total=total_batches, desc="Processing batches", unit="batch")
     )
 
@@ -337,8 +350,13 @@ def pre_process_dts(df, dataset_name, dataset_path):
         'dataset_313_spectrometer': openml_preprocess.preprocess_spectrometer,
         'dataset_4552_BachChoralHarmony': openml_preprocess.preprocess_bach_choral_harmony,
     }
+
+    # Drop missing values from the entire dataset (both features and target)
+    df = df.dropna()
+
+    if df['class'].dtype == 'float64' or df['class'].dtype == 'int64':
+        df['class'] = df['class'].astype(int)
     
-    # pdb.set_trace()
     # Apply preprocessing based on dataset name
     if dataset_name in kaggle_datasets:
         df = kaggle_datasets[dataset_name](df)
@@ -374,12 +392,8 @@ def pre_process_dts(df, dataset_name, dataset_path):
         ordinal_encoder = OrdinalEncoder(categories=categories)
         df[feature_cols] = ordinal_encoder.fit_transform(df[feature_cols])
         df = df[df['class'] != 'recommend']
-
-    # Drop missing values from the entire dataset (both features and target)
-    df = df.dropna()
     
     return df
-
 
 def process_single_dataset(dataset_path):
     """Process a single dataset and save results."""
@@ -400,9 +414,7 @@ def process_single_dataset(dataset_path):
     tests = binarize_dataset(test_df)
 
     classifiers = train_one_vs_rest_classifiers(trains)
-    # pdb.set_trace()
     classifier, _, _, _, validation_scores = train_classifier(train_df)
-    # pdb.set_trace()
     
     quantifiers = {
         "binary": [
@@ -441,10 +453,10 @@ def process_single_dataset(dataset_path):
             "KDEyML",
         ]
     }
-    # pdb.set_trace()
 
+    qnt_models = train_quantifiers(train_df)
 
-    results = test_one_vs_rest_classifiers(tests, test_df, classifiers, quantifiers, classifier, validation_scores, n_jobs=-1)
+    results = test_one_vs_rest_classifiers(train_df, tests, test_df, classifiers, quantifiers, classifier, validation_scores, qnt_models, n_jobs=-1)
 
     # Flatten results into rows for CSV
     rows = []

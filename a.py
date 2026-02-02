@@ -25,6 +25,8 @@ mask = y != 2
 X = X[mask]
 y = y[mask]
 
+pdb.set_trace()
+
 # Split into train and test
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
