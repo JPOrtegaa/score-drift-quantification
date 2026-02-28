@@ -3,3 +3,7 @@ datasets/
 results_paper/
 ablation/
 __pycache__/
+
+logs/
+ovr_results/
+.vscode/

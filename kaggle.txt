@@ -1,10 +1,10 @@
-python ovr.py -dts datasets/kaggle/cirrhosis.csv
-python ovr.py -dts datasets/kaggle/customer_segmentation.csv
-python ovr.py -dts datasets/kaggle/fashion-mnist.csv
-python ovr.py -dts datasets/kaggle/healthcare.csv
-python ovr.py -dts datasets/kaggle/IRIS.csv
-python ovr.py -dts datasets/kaggle/music_genre.csv
-python ovr.py -dts datasets/kaggle/predictive_maintenance.csv
-python ovr.py -dts datasets/kaggle/star_classification.csv
-python ovr.py -dts datasets/kaggle/Student_performance_data.csv
-python ovr.py -dts datasets/kaggle/zoo.csv
+python ovr.py -dts datasets/kaggle/cirrhosis.csv > logs/kaggle/cirrhosis.log 2>&1
+python ovr.py -dts datasets/kaggle/customer_segmentation.csv > logs/kaggle/customer_segmentation.log 2>&1
+python ovr.py -dts datasets/kaggle/fashion-mnist.csv > logs/kaggle/fashion-mnist.log 2>&1
+python ovr.py -dts datasets/kaggle/healthcare.csv > logs/kaggle/healthcare.log 2>&1
+python ovr.py -dts datasets/kaggle/IRIS.csv > logs/kaggle/IRIS.log 2>&1
+python ovr.py -dts datasets/kaggle/music_genre.csv > logs/kaggle/music_genre.log 2>&1
+python ovr.py -dts datasets/kaggle/predictive_maintenance.csv > logs/kaggle/predictive_maintenance.log 2>&1
+python ovr.py -dts datasets/kaggle/star_classification.csv > logs/kaggle/star_classification.log 2>&1
+python ovr.py -dts datasets/kaggle/Student_performance_data.csv > logs/kaggle/Student_performance_data.log 2>&1
+python ovr.py -dts datasets/kaggle/zoo.csv > logs/kaggle/zoo.log 2>&1

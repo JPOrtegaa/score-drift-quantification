@@ -2,9 +2,16 @@ import pandas as pd
 import numpy as np
 import sys
 import os
+import warnings
+
+# Suppress all warnings from sklearn
+warnings.filterwarnings('ignore')
+
+import os
+os.environ['PYTHONWARNINGS'] = 'ignore'
 
 from mlquantify.model_selection import UPP
-from mlquantify.adjust_counting import GAC, GPAC, FM
+from mlquantify.adjust_counting import AC, PAC, FM
 from mlquantify.neighbors import KDEyHD, KDEyCS, KDEyML
 from mlquantify.likelihood import EMQ
 from mlquantify.mixture import HDx
@@ -86,13 +93,13 @@ def get_quantifier_map(test_scores, tpr_fpr, pos_scores, neg_scores):
     }
 
 
-def get_multiclass_quantifier_map(y_train, X_test, priors, posteriors, qnt_models):
+def get_multiclass_quantifier_map(y_train, X_test, priors, posteriors, qnt_models, classifier):
     """Returns a dictionary mapping multiclass quantifier names to their callable functions."""
 
     # Initialize quantifiers that use aggregate pattern
-    gac = GAC()
-    gpac = GPAC()
-    emq = EMQ()
+    gac = AC()
+    gpac = PAC()
+    emq = EMQ(max_iter=2000)
     kde = KDEyHD()
     kde_cs = KDEyCS()
     kde_ml = KDEyML()
@@ -100,20 +107,25 @@ def get_multiclass_quantifier_map(y_train, X_test, priors, posteriors, qnt_model
     hdx = qnt_models["HDx"]
     pwk = qnt_models["PWK"]
 
-    # Get hard predictions for GAC
-    train_preds = np.argmax(priors, axis=1)
-    test_preds = np.argmax(posteriors, axis=1)
+    # Get hard predictions for GAC and map to actual class labels
+    train_pred_indices = np.argmax(priors, axis=1)
+    test_pred_indices = np.argmax(posteriors, axis=1)
+    
+    # Map indices to actual class labels using classifier's classes_
+    train_preds = classifier.classes_[train_pred_indices]
+    test_preds = classifier.classes_[test_pred_indices]
 
     return {
-        "GAC": lambda: gac.aggregate(train_predictions=train_preds, predictions=test_preds, y_train_values=y_train),
-        "GPAC": lambda: gpac.aggregate(train_predictions=priors, predictions=posteriors, y_train_values=y_train),
+        "GAC": lambda: gac.aggregate(train_predictions=train_preds, predictions=test_preds, y_train=y_train),
+        "GPAC": lambda: gpac.aggregate(train_predictions=priors, predictions=posteriors, y_train=y_train),
         "EMQ": lambda: emq.aggregate(predictions=posteriors, y_train=y_train),
-        "KDEyHD": lambda: kde.aggregate(train_predictions=priors, predictions=posteriors, train_y_values=y_train),
-        "KDEyCS": lambda: kde_cs.aggregate(train_predictions=priors, predictions=posteriors, train_y_values=y_train),
-        "KDEyML": lambda: kde_ml.aggregate(train_predictions=priors, predictions=posteriors, train_y_values=y_train),
-        "FM": lambda: fm.aggregate(train_predictions=priors, predictions=posteriors, y_train_values=y_train),
+        "KDEyHD": lambda: kde.aggregate(train_predictions=priors, predictions=posteriors, y_train=y_train),
+        "KDEyCS": lambda: kde_cs.aggregate(train_predictions=priors, predictions=posteriors, y_train=y_train),
+        "KDEyML": lambda: kde_ml.aggregate(train_predictions=priors, predictions=posteriors, y_train=y_train),
+        "FM": lambda: fm.aggregate(train_predictions=priors, predictions=posteriors, y_train=y_train),
         "HDx": lambda: hdx.predict(X=X_test),
         "PWK": lambda: pwk.predict(X=X_test),
+        "CC2": lambda: CC2(posteriors),
     }
 
 def scale_dataset(df, scaler=None):
@@ -245,7 +257,7 @@ def test_classifier(batch, classifier, quantifiers, validation_scores=None, qnt_
         X_test = batch.drop(columns=['class'])
         test_scores = classifier.predict_proba(X_test)
 
-        multiclass_map = get_multiclass_quantifier_map(y_train, X_test, validation_scores, test_scores, qnt_models)
+        multiclass_map = get_multiclass_quantifier_map(y_train, X_test, validation_scores, test_scores, qnt_models, classifier)
 
         results = {}
         for q in quantifiers:
@@ -279,12 +291,20 @@ def handle_batch_results(batch_result, multiclass_result, batch_df, quantifiers)
 
     # Add multiclass quantifiers
     for q in multiclass_result:
+        if isinstance(multiclass_result[q], dict):
+            predictions = multiclass_result[q]
+        else:
+            # Transform array into dict based on sorted class keys
+            classes = sorted(batch_result.keys())
+            classes = [int(cls) if isinstance(cls, (int, np.integer)) else cls for cls in classes]
+            predictions = {cls: float(multiclass_result[q][i]) for i, cls in enumerate(classes)}
+
         quantifier_results[q] = {
-            'predictions': multiclass_result[q],
-            'normalized_predictions': multiclass_result[q],  # Assuming multiclass predictions are already normalized
+            'predictions': predictions,
+            'normalized_predictions': predictions,  # Assuming multiclass predictions are already normalized
             'real_prevalence': real_prevalence
         }
-
+    
     return quantifier_results
 
 def process_single_batch(idx, train_df, tests, test_df, classifiers, quantifiers, classifier, validation_scores, qnt_models):
@@ -350,12 +370,6 @@ def pre_process_dts(df, dataset_name, dataset_path):
         'dataset_313_spectrometer': openml_preprocess.preprocess_spectrometer,
         'dataset_4552_BachChoralHarmony': openml_preprocess.preprocess_bach_choral_harmony,
     }
-
-    # Drop missing values from the entire dataset (both features and target)
-    df = df.dropna()
-
-    if df['class'].dtype == 'float64' or df['class'].dtype == 'int64':
-        df['class'] = df['class'].astype(int)
     
     # Apply preprocessing based on dataset name
     if dataset_name in kaggle_datasets:
@@ -392,6 +406,14 @@ def pre_process_dts(df, dataset_name, dataset_path):
         ordinal_encoder = OrdinalEncoder(categories=categories)
         df[feature_cols] = ordinal_encoder.fit_transform(df[feature_cols])
         df = df[df['class'] != 'recommend']
+    elif dataset_name == 'Walking':
+        df = df.rename(columns={'Class': 'class'})
+
+    # Drop missing values from the entire dataset (both features and target)
+    df = df.dropna()
+
+    if df['class'].dtype == 'float64' or df['class'].dtype == 'int64':
+        df['class'] = df['class'].astype(int)
     
     return df
 
@@ -442,6 +464,7 @@ def process_single_dataset(dataset_path):
             "HDy_syn",
         ],
         "multiclass": [
+            "CC2",
             "PWK",
             "HDx",
             "GAC",
@@ -456,7 +479,7 @@ def process_single_dataset(dataset_path):
 
     qnt_models = train_quantifiers(train_df)
 
-    results = test_one_vs_rest_classifiers(train_df, tests, test_df, classifiers, quantifiers, classifier, validation_scores, qnt_models, n_jobs=-1)
+    results = test_one_vs_rest_classifiers(train_df, tests, test_df, classifiers, quantifiers, classifier, validation_scores, qnt_models, n_jobs=16)
 
     # Flatten results into rows for CSV
     rows = []
