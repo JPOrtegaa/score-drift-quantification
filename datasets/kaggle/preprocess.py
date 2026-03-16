@@ -48,7 +48,7 @@ def preprocess_predictive_maintenance(df):
 
 
 def preprocess_star_classification(df):
-    df, _ = train_test_split(df, train_size=2000, stratify=df['class'], random_state=42)
+    df, _ = train_test_split(df, train_size=10000, stratify=df['class'], random_state=42)
 
     # Drop ID columns
     id_columns = ['obj_ID', 'run_ID', 'rerun_ID', 'cam_col', 'field_ID', 'spec_obj_ID']
