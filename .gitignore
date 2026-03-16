@@ -1,5 +1,7 @@
 venv/
-datasets/
+datasets/**
+!datasets/**/
+!datasets/**/*.py
 results_paper/
 ablation/
 __pycache__/
