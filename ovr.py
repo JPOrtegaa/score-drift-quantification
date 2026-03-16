@@ -33,6 +33,9 @@ import datasets.kaggle.preprocess as kaggle_preprocess
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'datasets', 'openml'))
 import datasets.openml.preprocess as openml_preprocess
 
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'datasets', 'ours'))
+import datasets.ours.preprocess as ours_preprocess
+
 from methods.quantifiers import (
     CC,
     CC2,
@@ -363,12 +366,23 @@ def pre_process_dts(df, dataset_name, dataset_path):
         'zoo': kaggle_preprocess.preprocess_zoo,
         'healthcare': kaggle_preprocess.preprocess_healthcare,
         'music_genre': kaggle_preprocess.preprocess_music_genre,
-        'customer_segmentation': kaggle_preprocess.preprocess_customer_segmentation
+        'customer_segmentation': kaggle_preprocess.preprocess_customer_segmentation,
+        'fashion-mnist': kaggle_preprocess.preprocess_fashion_mnist,
+        'zoo2': kaggle_preprocess.preprocess_zoo2,
+        'zoo3': kaggle_preprocess.preprocess_zoo3
     }
     
     openml_datasets = {
         'dataset_313_spectrometer': openml_preprocess.preprocess_spectrometer,
         'dataset_4552_BachChoralHarmony': openml_preprocess.preprocess_bach_choral_harmony,
+        'dataset_1457_amazon-commerce-reviews': openml_preprocess.preprocess_amazon_commerce_reviews,
+        'fabert': openml_preprocess.preprocess_fabert,
+        'dataset_44478_amazon-commerce-reviews_seed_0_nrows_2000_nclasses_10_ncols_100_stratify_True': openml_preprocess.preprocess_amazon_commerce_reviews_subset,
+        'dataset_44479_amazon-commerce-reviews_seed_1_nrows_2000_nclasses_10_ncols_100_stratify_True': openml_preprocess.preprocess_amazon_commerce_reviews_subset,
+        'dataset_44480_amazon-commerce-reviews_seed_2_nrows_2000_nclasses_10_ncols_100_stratify_True': openml_preprocess.preprocess_amazon_commerce_reviews_subset,
+        'dataset_44481_amazon-commerce-reviews_seed_3_nrows_2000_nclasses_10_ncols_100_stratify_True': openml_preprocess.preprocess_amazon_commerce_reviews_subset,
+        'dataset_44482_amazon-commerce-reviews_seed_4_nrows_2000_nclasses_10_ncols_100_stratify_True': openml_preprocess.preprocess_amazon_commerce_reviews_subset,
+        'fars': openml_preprocess.preprocess_fars,
     }
     
     # Apply preprocessing based on dataset name
@@ -387,10 +401,16 @@ def pre_process_dts(df, dataset_name, dataset_path):
         for col in categorical_cols:
             if col in df.columns:
                 df[col] = df[col].apply(lambda x: ord(x.lower()) - ord('a') + 1 if isinstance(x, str) else x)
-    elif dataset_name == 'HAR' or dataset_name == 'Land-use' or dataset_name == 'Walking':
-        df = df.rename(columns={'Class': 'class'})
+    elif dataset_name == 'HAR':
+        df = ours_preprocess.preprocess_har(df)
+    elif dataset_name == 'Covertype':
+        df = ours_preprocess.preprocess_covertype(df)
+    elif dataset_name == 'Dermatology':
+        df = ours_preprocess.preprocess_dermatology(df)
     elif dataset_name == 'Mosquitoes':
-        df = df.drop(columns=['sensor_id', 'file', 'time_elapsed'], errors='ignore')
+        df = ours_preprocess.preprocess_mosquitoes(df)
+    elif dataset_name == 'Land-use' or dataset_name == 'Walking':
+        df = df.rename(columns={'Class': 'class'})
     elif dataset_name == 'Nursery':
         feature_cols = ['parents', 'has_nurs', 'form', 'children', 'housing', 'finance', 'social', 'health']
         categories = [
