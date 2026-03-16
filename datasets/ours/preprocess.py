@@ -10,16 +10,16 @@ def preprocess_har(df):
 
 
 def preprocess_covertype(df):
-    df, _ = train_test_split(df, train_size=2000, stratify=df['class'], random_state=42)
+    df, _ = train_test_split(df, train_size=10000, stratify=df['class'], random_state=42)
     return df
 
 
 def preprocess_dermatology(df):
-    df, _ = train_test_split(df, train_size=2000, stratify=df['class'], random_state=42)
+    df, _ = train_test_split(df, train_size=10000, stratify=df['class'], random_state=42)
     return df
 
 
 def preprocess_mosquitoes(df):
     df = df.drop(columns=['sensor_id', 'file', 'time_elapsed'], errors='ignore')
-    df, _ = train_test_split(df, train_size=2000, stratify=df['class'], random_state=42)
+    df, _ = train_test_split(df, train_size=10000, stratify=df['class'], random_state=42)
     return df
