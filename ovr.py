@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np
 import sys
 import os
+import json
 import warnings
 
 # Suppress all warnings from sklearn
@@ -67,6 +68,53 @@ from methods.quantifiers_utils import getTPRandFPRbyThreshold
 import math
 import sys
 import argparse
+
+def serialize_scores(scores):
+    if scores is None:
+        return ""
+
+    return json.dumps(np.asarray(scores).tolist())
+
+def sanitize_model_name(model_id):
+    return str(model_id).replace(os.sep, "_").replace("/", "_").replace(" ", "_")
+
+def build_dataset_output_dirs(dataset_name):
+    dataset_dir = os.path.join(".", "ovr_results2", dataset_name)
+    test_scores_dir = os.path.join(dataset_dir, "test_scores")
+    os.makedirs(dataset_dir, exist_ok=True)
+    os.makedirs(test_scores_dir, exist_ok=True)
+    return dataset_dir, test_scores_dir
+
+def persist_training_distributions(dataset_dir, classifiers, validation_scores):
+    for cls, model_data in classifiers.items():
+        class_dir = os.path.join(dataset_dir, sanitize_model_name(cls))
+        os.makedirs(class_dir, exist_ok=True)
+        training_row = {
+            "model_id": cls,
+            "pos_scores": serialize_scores(model_data["pos_scores"]),
+            "neg_scores": serialize_scores(model_data["neg_scores"]),
+        }
+        pd.DataFrame([training_row]).to_csv(os.path.join(class_dir, "training_distributions.csv"), index=False)
+
+    multiclass_dir = os.path.join(dataset_dir, "multiclass")
+    os.makedirs(multiclass_dir, exist_ok=True)
+    multiclass_row = {
+        "model_id": "multiclass",
+        "training_scores": serialize_scores(validation_scores),
+    }
+    pd.DataFrame([multiclass_row]).to_csv(os.path.join(multiclass_dir, "training_distributions.csv"), index=False)
+
+def persist_batch_scores(test_scores_dir, batch_index, model_id, incoming_test_scores, selected_p_scores=None, selected_n_scores=None):
+    file_name = f"batch_{batch_index:04d}_{sanitize_model_name(model_id)}.csv"
+    file_path = os.path.join(test_scores_dir, file_name)
+    row = {
+        "batch_index": batch_index,
+        "model_id": model_id,
+        "incoming_test_scores": serialize_scores(incoming_test_scores),
+        "selected_p_scores": serialize_scores(selected_p_scores),
+        "selected_n_scores": serialize_scores(selected_n_scores),
+    }
+    pd.DataFrame([row]).to_csv(file_path, index=False)
 
 def get_quantifier_map(test_scores, tpr_fpr, pos_scores, neg_scores):
     """Returns a dictionary mapping quantifier names to their callable functions."""
@@ -235,7 +283,7 @@ def train_one_vs_rest_classifiers(trains):
 
     return classifiers
 
-def test_classifier(batch, classifier, quantifiers, validation_scores=None, qnt_models=None, train_df=None):
+def test_classifier(batch, classifier, quantifiers, validation_scores=None, qnt_models=None, train_df=None, batch_index=None, model_id=None):
 
     if isinstance(classifier, dict): # Binary
         clf = classifier["model"]
@@ -250,10 +298,31 @@ def test_classifier(batch, classifier, quantifiers, validation_scores=None, qnt_
         quantifier_map = get_quantifier_map(test_scores, tpr_fpr, pos_scores, neg_scores)
 
         results = {}
+        selected_p_scores = None
+        selected_n_scores = None
         for q in quantifiers:
             if q not in quantifier_map:
                 raise ValueError(f"Unknown quantifier: {q}")
-            results[q] = quantifier_map[q]()[1]
+            if q == "DySyn":
+                qnt_result = DySyn(
+                    test_scores,
+                    measure="hellinger",
+                    write_distribution=False,
+                    return_metadata=True,
+                )
+                results[q] = qnt_result[0][1]
+                selected_p_scores = qnt_result[3]["selected_p_scores"]
+                selected_n_scores = qnt_result[3]["selected_n_scores"]
+            else:
+                results[q] = quantifier_map[q]()[1]
+
+        metadata = {
+            "batch_index": batch_index,
+            "model_id": model_id,
+            "incoming_test_scores": test_scores,
+            "selected_p_scores": selected_p_scores,
+            "selected_n_scores": selected_n_scores,
+        }
 
     else: # Multiclass
         y_train = train_df['class']
@@ -268,9 +337,17 @@ def test_classifier(batch, classifier, quantifiers, validation_scores=None, qnt_
                 raise ValueError(f"Unknown quantifier: {q}")
             results[q] = multiclass_map[q]()
 
-    return results
+        metadata = {
+            "batch_index": batch_index,
+            "model_id": model_id,
+            "incoming_test_scores": test_scores,
+            "selected_p_scores": None,
+            "selected_n_scores": None,
+        }
 
-def handle_batch_results(batch_result, multiclass_result, batch_df, quantifiers):
+    return results, metadata
+
+def handle_batch_results(batch_result, multiclass_result, batch_df, quantifiers, batch_index):
     # Get real prevalence from batch
     real_prevalence = batch_df['class'].value_counts(normalize=True).sort_index().to_dict()
 
@@ -289,7 +366,8 @@ def handle_batch_results(batch_result, multiclass_result, batch_df, quantifiers)
         quantifier_results[q] = {
             'predictions': class_predictions,
             'normalized_predictions': normalized_predictions,
-            'real_prevalence': real_prevalence
+            'real_prevalence': real_prevalence,
+            'batch_index': batch_index,
         }
 
     # Add multiclass quantifiers
@@ -305,30 +383,62 @@ def handle_batch_results(batch_result, multiclass_result, batch_df, quantifiers)
         quantifier_results[q] = {
             'predictions': predictions,
             'normalized_predictions': predictions,  # Assuming multiclass predictions are already normalized
-            'real_prevalence': real_prevalence
+            'real_prevalence': real_prevalence,
+            'batch_index': batch_index,
         }
     
     return quantifier_results
 
-def process_single_batch(idx, train_df, tests, test_df, classifiers, quantifiers, classifier, validation_scores, qnt_models):
+def process_single_batch(batch_index, idx, train_df, tests, test_df, classifiers, quantifiers, classifier, validation_scores, qnt_models, test_scores_dir):
     """Process a single batch - designed for parallel execution."""
     batch_result = {}
     for cls in tests:
         binary_test = tests[cls]
         binary_classifier = classifiers[cls]
         binary_batch = binary_test.iloc[idx]
-        batch_result[cls] = test_classifier(binary_batch, binary_classifier, quantifiers['binary']) # put binary quantifiers only.
+        batch_result[cls], score_metadata = test_classifier(
+            binary_batch,
+            binary_classifier,
+            quantifiers['binary'],
+            batch_index=batch_index,
+            model_id=cls,
+        ) # put binary quantifiers only.
+        persist_batch_scores(
+            test_scores_dir,
+            batch_index,
+            cls,
+            score_metadata["incoming_test_scores"],
+            score_metadata["selected_p_scores"],
+            score_metadata["selected_n_scores"],
+        )
     
     batch = test_df.iloc[idx]
     # Also get multiclass quantifiers
-    multiclass_result = test_classifier(batch, classifier, quantifiers['multiclass'], validation_scores, qnt_models, train_df) # multiclass quantifiers
+    multiclass_result, multiclass_metadata = test_classifier(
+        batch,
+        classifier,
+        quantifiers['multiclass'],
+        validation_scores,
+        qnt_models,
+        train_df,
+        batch_index=batch_index,
+        model_id="multiclass",
+    ) # multiclass quantifiers
+    persist_batch_scores(
+        test_scores_dir,
+        batch_index,
+        "multiclass",
+        multiclass_metadata["incoming_test_scores"],
+        multiclass_metadata["selected_p_scores"],
+        multiclass_metadata["selected_n_scores"],
+    )
     
-    result = handle_batch_results(batch_result, multiclass_result, test_df.iloc[idx], quantifiers['binary'])
+    result = handle_batch_results(batch_result, multiclass_result, test_df.iloc[idx], quantifiers['binary'], batch_index)
 
     return result
 
 
-def test_one_vs_rest_classifiers(train_df, tests, test_df, classifiers, quantifiers, classifier, validation_scores, qnt_models, n_jobs=-1):
+def test_one_vs_rest_classifiers(train_df, tests, test_df, classifiers, quantifiers, classifier, validation_scores, qnt_models, test_scores_dir, n_jobs=-1):
     """
     Test classifiers using parallel processing.
     
@@ -350,8 +460,8 @@ def test_one_vs_rest_classifiers(train_df, tests, test_df, classifiers, quantifi
     
     # Process batches in parallel
     all_results = Parallel(n_jobs=n_jobs, backend='loky')(
-        delayed(process_single_batch)(idx, train_df, tests, test_df, classifiers, quantifiers, classifier, validation_scores, qnt_models)
-        for idx in tqdm(batch_indices, total=total_batches, desc="Processing batches", unit="batch")
+        delayed(process_single_batch)(batch_index, idx, train_df, tests, test_df, classifiers, quantifiers, classifier, validation_scores, qnt_models, test_scores_dir)
+        for batch_index, idx in enumerate(tqdm(batch_indices, total=total_batches, desc="Processing batches", unit="batch"))
     )
 
     return all_results
@@ -440,6 +550,7 @@ def pre_process_dts(df, dataset_name, dataset_path):
 def process_single_dataset(dataset_path):
     """Process a single dataset and save results."""
     dataset_name = dataset_path.split('/')[-1].split('.')[0]
+    dataset_dir, test_scores_dir = build_dataset_output_dirs(dataset_name)
     print(f"\n{'='*60}")
     print(f"Processing dataset: {dataset_name}")
     print(f"{'='*60}")
@@ -498,14 +609,29 @@ def process_single_dataset(dataset_path):
     }
 
     qnt_models = train_quantifiers(train_df)
+    persist_training_distributions(dataset_dir, classifiers, validation_scores)
 
-    results = test_one_vs_rest_classifiers(train_df, tests, test_df, classifiers, quantifiers, classifier, validation_scores, qnt_models, n_jobs=16)
+    results = test_one_vs_rest_classifiers(
+        train_df,
+        tests,
+        test_df,
+        classifiers,
+        quantifiers,
+        classifier,
+        validation_scores,
+        qnt_models,
+        test_scores_dir,
+        n_jobs=1,
+    )
 
     # Flatten results into rows for CSV
     rows = []
     for batch_result in results:
         for quantifier, data in batch_result.items():
-            row = {'qnt': quantifier}
+            row = {
+                'qnt': quantifier,
+                'batch_index': data['batch_index'],
+            }
             classes = sorted(data['predictions'].keys())
             
             # Add predictions
@@ -524,7 +650,7 @@ def process_single_dataset(dataset_path):
 
     # Write to CSV
     results_df = pd.DataFrame(rows).round(2)
-    output_path = f'./ovr_results/{dataset_name}_results.csv'
+    output_path = os.path.join(dataset_dir, f'{dataset_name}_results.csv')
     results_df.to_csv(output_path, index=False)
     print(f"Results saved to: {output_path}")
 
