@@ -76,7 +76,7 @@ def DyS(p_score, n_score, test, measure="topsoe", bins=np.arange(2, 22, 2), err=
 
     return np.array([result, 1 - result])
 
-def DySyn(ts, measure, MF=np.arange(0.1, 1.0, 0.2), write_distribution=True, distributions_dir=None, return_metadata=False):
+def DySyn(ts, measure, MF=np.arange(0.1, 1.0, 0.2), write_distribution=None, distributions_dir=None, return_metadata=False):
     # MF = np.arange(0.2, 0.7, 0.2) # mudar de 0.2 a 0.7
     # Ensure MF is always iterable (handles scalar numpy.float64 / 0-d arrays)
     MF = np.atleast_1d(np.round(MF, 2)).astype(float)
