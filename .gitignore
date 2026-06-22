@@ -9,3 +9,6 @@ __pycache__/
 logs/
 .vscode/
 ovr_results2/
+ovr_results3/
+all3.txt
+*.zip
