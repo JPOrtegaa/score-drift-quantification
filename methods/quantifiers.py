@@ -1,7 +1,25 @@
 import numpy as np
 import statistics
+import csv
+import os
+from datetime import datetime
+from uuid import uuid4
 
 from .quantifiers_utils import getHist, getTPRandFPRbyThreshold, DySyn_distance, TernarySearch, MoSS
+
+def write_distributions(moss_distributions, distributions_dir=None):
+    if distributions_dir is None:
+        distributions_dir = os.path.join(os.getcwd(), "distributions")
+    os.makedirs(distributions_dir, exist_ok=True)
+    file_name = f"dysyn_distribution_{datetime.now().strftime('%Y%m%d_%H%M%S_%f')}_{uuid4().hex[:8]}.csv"
+    file_path = os.path.join(distributions_dir, file_name)
+
+    with open(file_path, "w", newline="") as csvfile:
+        writer = csv.DictWriter(csvfile, fieldnames=["p_scores", "n_scores", "n", "alpha", "mf"])
+        writer.writeheader()
+        writer.writerows(moss_distributions)
+
+    return file_path
 
 def CC(test, thr=0.5):
     result = np.sum(test >= thr) / len(test)
@@ -58,7 +76,7 @@ def DyS(p_score, n_score, test, measure="topsoe", bins=np.arange(2, 22, 2), err=
 
     return np.array([result, 1 - result])
 
-def DySyn(ts, measure, MF=np.arange(0.1, 1.0, 0.2)):
+def DySyn(ts, measure, MF=np.arange(0.1, 1.0, 0.2), write_distribution=None, distributions_dir=None, return_metadata=False):
     # MF = np.arange(0.2, 0.7, 0.2) # mudar de 0.2 a 0.7
     # Ensure MF is always iterable (handles scalar numpy.float64 / 0-d arrays)
     MF = np.atleast_1d(np.round(MF, 2)).astype(float)
@@ -66,11 +84,29 @@ def DySyn(ts, measure, MF=np.arange(0.1, 1.0, 0.2)):
 
     results = []
     distances = []
+    moss_distributions = []
+    synthetic_candidates = []
+    n_samples = 1000
+    alpha = 0.5
 
     for mf in MF:
-        scores = MoSS(1000, 0.5, mf)  # Implement MoSS function separately
+        scores = MoSS(n_samples, alpha, mf)  # Implement MoSS function separately
         test_p = scores[scores[:, 2] == 1, 0]
         test_n = scores[scores[:, 2] == 2, 0]
+        synthetic_candidates.append({
+            "p_scores": test_p,
+            "n_scores": test_n,
+            "n": n_samples,
+            "alpha": alpha,
+            "mf": mf,
+        })
+        moss_distributions.append({
+            "p_scores": np.array2string(test_p, separator=","),
+            "n_scores": np.array2string(test_n, separator=","),
+            "n": n_samples,
+            "alpha": alpha,
+            "mf": mf,
+        })
 
         if measure == "sord":
             rQnt = DySyn_SORD(test_p, test_n, ts)  # Implement DySyn_SORD separately
@@ -80,8 +116,23 @@ def DySyn(ts, measure, MF=np.arange(0.1, 1.0, 0.2)):
         distances.append(rQnt[1])
         results.append(rQnt[0][0])
 
-    best_result = round(results[np.argmin(distances)], 2)
-    return [np.array([best_result, 1 - best_result]), min(distances), MF[np.argmin(distances)]]
+    distribution_file = None
+    if write_distribution:
+        distribution_file = write_distributions(moss_distributions, distributions_dir=distributions_dir)
+
+    best_idx = int(np.argmin(distances))
+    best_result = round(results[best_idx], 2)
+    response = [np.array([best_result, 1 - best_result]), min(distances), MF[best_idx]]
+
+    if return_metadata:
+        response.append({
+            "selected_p_scores": synthetic_candidates[best_idx]["p_scores"],
+            "selected_n_scores": synthetic_candidates[best_idx]["n_scores"],
+            "selected_mf": synthetic_candidates[best_idx]["mf"],
+            "distribution_file": distribution_file,
+        })
+
+    return response
 
 def DySyn_DyS(p_score, n_score, test, measure="hellinger", b_sizes = list(range(2, 21, 2)) + [30]):
     results = []

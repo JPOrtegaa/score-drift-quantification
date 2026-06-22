@@ -7,6 +7,5 @@ ablation/
 __pycache__/
 
 logs/
-ovr_results/
 .vscode/
 ovr_results2/
