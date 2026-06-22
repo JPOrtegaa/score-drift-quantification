@@ -70,6 +70,12 @@ import math
 import sys
 import argparse
 
+# Toggle persistence of score distributions: training distributions, per-batch
+# test scores, and the DySyn selected distributions (the cdt_results/<dataset>/
+# {test_scores,<class>,multiclass} file structure). Set to False to skip writing
+# them; the final <dataset>_results.csv is always written.
+SAVE_DISTRIBUTIONS = False
+
 def serialize_scores(scores):
     if scores is None:
         return ""
@@ -80,13 +86,16 @@ def sanitize_model_name(model_id):
     return str(model_id).replace(os.sep, "_").replace("/", "_").replace(" ", "_")
 
 def build_dataset_output_dirs(dataset_name):
-    dataset_dir = os.path.join(".", "ovr_results2", dataset_name)
+    dataset_dir = os.path.join(".", "cdt_results", dataset_name)
     test_scores_dir = os.path.join(dataset_dir, "test_scores")
     os.makedirs(dataset_dir, exist_ok=True)
-    os.makedirs(test_scores_dir, exist_ok=True)
+    if SAVE_DISTRIBUTIONS:
+        os.makedirs(test_scores_dir, exist_ok=True)
     return dataset_dir, test_scores_dir
 
 def persist_training_distributions(dataset_dir, classifiers, validation_scores):
+    if not SAVE_DISTRIBUTIONS:
+        return
     for cls, model_data in classifiers.items():
         class_dir = os.path.join(dataset_dir, sanitize_model_name(cls))
         os.makedirs(class_dir, exist_ok=True)
@@ -106,6 +115,8 @@ def persist_training_distributions(dataset_dir, classifiers, validation_scores):
     pd.DataFrame([multiclass_row]).to_csv(os.path.join(multiclass_dir, "training_distributions.csv"), index=False)
 
 def persist_batch_scores(test_scores_dir, batch_index, model_id, incoming_test_scores, selected_p_scores=None, selected_n_scores=None):
+    if not SAVE_DISTRIBUTIONS:
+        return
     file_name = f"batch_{batch_index:04d}_{sanitize_model_name(model_id)}.csv"
     file_path = os.path.join(test_scores_dir, file_name)
     row = {
@@ -666,7 +677,7 @@ def process_single_dataset(dataset_path):
         validation_scores,
         qnt_models,
         test_scores_dir,
-        n_jobs=1,
+        n_jobs=23,
     )
 
     # Flatten results into rows for CSV
