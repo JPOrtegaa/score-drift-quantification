@@ -92,7 +92,6 @@ class CDT:
         self.pos_prev = pos_prev
         self.distances = None
         self.thr = None
-        self.sd = None
 
     # Train classifier with k-fold cross-validation and store the positive and negative scores.
     def _train_classifier(self, train):
@@ -138,9 +137,11 @@ class CDT:
     def fit(self, train):
         distances = []
 
+        # Split train into training and validation sets
         train, validation = self._split_train(train)
         pos_scores, neg_scores = self._train_classifier(train)
 
+        # APP sampling and distance extraction
         for _ in range(self.repetitions):
             for size in self.sizes:
                 for prev in self.pos_prev:
@@ -151,7 +152,9 @@ class CDT:
                     _, distance = DyS(pos_scores, neg_scores, test_scores, return_distance=True)
                     distances.append(distance)
 
+        # Threshold calculation based on the extracted distances (mean + 2*std)
         self.distances = np.array(distances)
+        self.thr = np.mean(distances) + (2 * np.std(distances))
 
     # Return if the test mean has concept drift based on the threshold.
     def predict(self, test):
