@@ -85,7 +85,8 @@ class CDT:
 
     def __init__(self, classifier, sizes=1000, repetitions=10, pos_prev = np.linspace(0, 1, 100)):
         self.classifier = classifier
-        self.sizes = sizes
+        # Allow a single batch size (scalar) or multiple sizes (iterable)
+        self.sizes = [sizes] if np.isscalar(sizes) else sizes
         self.repetitions = repetitions
         self.pos_prev = pos_prev
         self.distances = None
