@@ -1,0 +1,11 @@
+python ovr.py -dts datasets/kaggle/fashion-mnist.csv > logs/kaggle/fashion-mnist.log 2>&1
+python ovr.py -dts datasets/kaggle/healthcare.csv > logs/kaggle/healthcare.log 2>&1
+python ovr.py -dts datasets/kaggle/star_classification.csv > logs/kaggle/star_classification.log 2>&1
+python ovr.py -dts datasets/openml/fabert.csv > logs/openml/fabert.log 2>&1
+python ovr.py -dts datasets/openml/fars.csv > logs/openml/fars.log 2>&1
+python ovr.py -dts datasets/openml/dataset_1457_amazon-commerce-reviews.csv > logs/openml/dataset_1457_amazon-commerce-reviews.log 2>&1
+python ovr.py -dts datasets/openml/dataset_44478_amazon-commerce-reviews_seed_0_nrows_2000_nclasses_10_ncols_100_stratify_True.csv > logs/openml/dataset_44478_amazon-commerce-reviews_seed_0_nrows_2000_nclasses_10_ncols_100_stratify_True.log 2>&1
+python ovr.py -dts datasets/openml/dataset_44479_amazon-commerce-reviews_seed_1_nrows_2000_nclasses_10_ncols_100_stratify_True.csv > logs/openml/dataset_44479_amazon-commerce-reviews_seed_1_nrows_2000_nclasses_10_ncols_100_stratify_True.log 2>&1
+python ovr.py -dts datasets/openml/dataset_44480_amazon-commerce-reviews_seed_2_nrows_2000_nclasses_10_ncols_100_stratify_True.csv > logs/openml/dataset_44480_amazon-commerce-reviews_seed_2_nrows_2000_nclasses_10_ncols_100_stratify_True.log 2>&1
+python ovr.py -dts datasets/openml/dataset_44481_amazon-commerce-reviews_seed_3_nrows_2000_nclasses_10_ncols_100_stratify_True.csv > logs/openml/dataset_44481_amazon-commerce-reviews_seed_3_nrows_2000_nclasses_10_ncols_100_stratify_True.log 2>&1
+python ovr.py -dts datasets/openml/dataset_44482_amazon-commerce-reviews_seed_4_nrows_2000_nclasses_10_ncols_100_stratify_True.csv > logs/openml/dataset_44482_amazon-commerce-reviews_seed_4_nrows_2000_nclasses_10_ncols_100_stratify_True.log 2>&1

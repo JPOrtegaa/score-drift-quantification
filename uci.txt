@@ -1,0 +1,2 @@
+python ovr.py -dts datasets/uci/uci_42123_article_influence.csv > logs/uci/uci_42123_article_influence.log 2>&1
+python ovr.py -dts datasets/uci/wine.csv > logs/uci/wine.log 2>&1
