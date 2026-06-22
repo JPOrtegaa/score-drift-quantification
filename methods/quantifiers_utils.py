@@ -83,9 +83,7 @@ def MoSS(n, alpha, m):
 # Concept Distance Threshold class implementation (CDT)
 class CDT:
 
-    from .quantifiers import DyS  # local import to avoid circular import
-
-    def __init__(self, classifier, sizes, repetitions, pos_prev = np.linspace(0, 1, 100)):
+    def __init__(self, classifier, sizes=1000, repetitions=10, pos_prev = np.linspace(0, 1, 100)):
         self.classifier = classifier
         self.sizes = sizes
         self.repetitions = repetitions
@@ -135,6 +133,8 @@ class CDT:
 
     # Fit Concept Distance Threshold (CDT)
     def fit(self, train):
+        from .quantifiers import DyS  # local import to avoid circular import
+
         distances = []
 
         # Split train into training and validation sets
@@ -157,5 +157,5 @@ class CDT:
         self.thr = np.mean(distances) + (2 * np.std(distances))
 
     # Return if the test mean has concept drift based on the threshold.
-    def predict(self, test):
-        return (np.mean(test) >= self.thr)
+    def predict(self, distance):
+        return (distance >= self.thr)

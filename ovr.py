@@ -21,6 +21,7 @@ from mlquantify.neighbors import PWK
 from sklearn.preprocessing import OrdinalEncoder, StandardScaler
 from sklearn.model_selection import train_test_split, StratifiedKFold
 from sklearn.linear_model import LogisticRegression
+from sklearn.ensemble import RandomForestClassifier
 
 import pdb
 
@@ -64,7 +65,7 @@ from methods.quadapt import (
     SMMSyn,
     HDySyn,
 )
-from methods.quantifiers_utils import getTPRandFPRbyThreshold
+from methods.quantifiers_utils import getTPRandFPRbyThreshold, CDT
 import math
 import sys
 import argparse
@@ -240,7 +241,14 @@ def train_quantifiers(train_df):
 def train_classifier(train_df):
     X_train = train_df.drop(columns=['class'])
     y_train = train_df['class']
-    
+
+    # CDT calculation
+    cdt_thr = None
+    if len(y_train.unique()) == 2:  # Binary only
+        cdt = CDT(classifier=RandomForestClassifier(n_estimators=200, random_state=42, n_jobs=-1))
+        cdt.fit(train_df)
+        cdt_thr = cdt.thr
+
     skf = StratifiedKFold(n_splits=10, shuffle=True, random_state=42)
     clf = LogisticRegression(random_state=42, max_iter=2000, n_jobs=-1)
     
@@ -267,18 +275,19 @@ def train_classifier(train_df):
         pos_scores = validation_scores[validation_scores[:, 2] == 1, 1].astype(float)
         neg_scores = validation_scores[validation_scores[:, 2] == 0, 1].astype(float)
 
-    return clf, tpr_fpr, pos_scores, neg_scores, validation_scores
+    return clf, tpr_fpr, pos_scores, neg_scores, validation_scores, cdt_thr
 
 def train_one_vs_rest_classifiers(trains):
     classifiers = {}
 
     for cls, bin_train_df in trains.items():
-        clf, tpr_fpr, pos_scores, neg_scores, _ = train_classifier(bin_train_df)
+        clf, tpr_fpr, pos_scores, neg_scores, _, cdt_thr = train_classifier(bin_train_df)
         classifiers[cls] = {
             "model": clf,
             "tpr_fpr": tpr_fpr,
             "pos_scores": pos_scores,
             "neg_scores": neg_scores,
+            "cdt_thr": cdt_thr,
         }
 
     return classifiers
@@ -290,6 +299,7 @@ def test_classifier(batch, classifier, quantifiers, validation_scores=None, qnt_
         tpr_fpr = classifier["tpr_fpr"]
         pos_scores = classifier["pos_scores"]
         neg_scores = classifier["neg_scores"]
+        cdt_thr = classifier.get("cdt_thr", None)
 
         X_test = batch.drop(columns=['class'])
         test_scores = clf.predict_proba(X_test)[:, 1]
@@ -300,7 +310,32 @@ def test_classifier(batch, classifier, quantifiers, validation_scores=None, qnt_
         results = {}
         selected_p_scores = None
         selected_n_scores = None
+
+        # CDT drift detector (binary only): set up once with the trained threshold
+        # and the DyS distance of this batch (reused for every synthetic quantifier).
+        cdt = None
+        dys_distance = None
+        if cdt_thr is not None:
+            cdt = CDT(classifier=None)
+            cdt.thr = cdt_thr
+            _, dys_distance = DyS(pos_scores, neg_scores, test_scores, return_distance=True)
+
         for q in quantifiers:
+            # CDT-gated variant ({base}_cdt): drift (distance >= thr) -> synthetic
+            # version, otherwise fall back to the base (non-synthetic) quantifier.
+            if q.endswith("_cdt"):
+                base_q = q[:-4]
+                syn_q = "DySyn" if base_q == "DyS" else f"{base_q}_syn"
+                if cdt is None:
+                    raise ValueError(f"CDT threshold unavailable for gated quantifier: {q}")
+                chosen = syn_q if cdt.predict(dys_distance) else base_q
+                if chosen not in quantifier_map:
+                    raise ValueError(f"Unknown quantifier for CDT gating: {chosen}")
+                # Reuse the already-computed prevalence when available, otherwise
+                # compute it on demand so this does not depend on list ordering.
+                results[q] = results[chosen] if chosen in results else quantifier_map[chosen]()[1]
+                continue
+
             if q not in quantifier_map:
                 raise ValueError(f"Unknown quantifier: {q}")
             if q == "DySyn":
@@ -567,7 +602,7 @@ def process_single_dataset(dataset_path):
     tests = binarize_dataset(test_df)
 
     classifiers = train_one_vs_rest_classifiers(trains)
-    classifier, _, _, _, validation_scores = train_classifier(train_df)
+    classifier, _, _, _, validation_scores, _ = train_classifier(train_df)
     
     quantifiers = {
         "binary": [
@@ -593,6 +628,16 @@ def process_single_dataset(dataset_path):
             "MS2_syn",
             "SMM_syn",
             "HDy_syn",
+            "DyS_cdt",
+            "ACC_cdt",
+            "PACC_cdt",
+            "X_cdt",
+            "MAX_cdt",
+            "T50_cdt",
+            "MS_cdt",
+            "MS2_cdt",
+            "SMM_cdt",
+            "HDy_cdt",
         ],
         "multiclass": [
             "CC2",
