@@ -1,5 +1,7 @@
 import numpy as np
 
+from methods.quantifiers import DyS
+
 def getTPRandFPRbyThreshold(validation_scores):
     unique_scores = np.arange(0.01, 1.00, 0.01)
     arrayOfTPRandFPRByTr = []
@@ -75,3 +77,26 @@ def MoSS(n, alpha, m):
     n_score = 1 - (np.random.uniform(size=int(round(n * (1 - alpha), 0))) ** m)
     scores = np.column_stack((np.concatenate((p_score, n_score)), np.concatenate((p_score, n_score)), np.concatenate((np.ones(len(p_score)), np.full(len(n_score), 2)))))
     return scores
+
+class CDT:
+    def __init__(self, classifier, dys):
+        self.classifier = classifier
+        self.dys = dys
+        self.thr = None
+        self.sd = None
+
+    def fit(self, test):
+        sizes = [1000]
+        pos_prev = np.linspace(0,1,100)
+
+        for i in range(1, 5):
+            for size in sizes:
+                for prev in pos_prev:
+                    print()
+
+
+        return None
+
+
+    def predict(self):
+        return None

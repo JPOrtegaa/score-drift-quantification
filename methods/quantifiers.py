@@ -57,8 +57,9 @@ def ACC(test, TprFpr, thr=0.5):
 
     return np.array([result, 1 - result], dtype=float)
 
-def DyS(p_score, n_score, test, measure="topsoe", bins=np.arange(2, 22, 2), err=1e-5):
+def DyS(p_score, n_score, test, measure="topsoe", bins=np.arange(2, 22, 2), err=1e-5, return_distance=False):
     results = []
+    distances = []
 
     for b_size in bins:
         Sty_1 = getHist(p_score, b_size)  # Implement getHist separately
@@ -70,11 +71,17 @@ def DyS(p_score, n_score, test, measure="topsoe", bins=np.arange(2, 22, 2), err=
 
         best_alpha = TernarySearch(0, 1, f, err)  # Implement TernarySearch separately
         results.append(best_alpha)
+        distances.append(f(best_alpha))
 
     result = statistics.median(results)
     result = max(0, min(result, 1))
 
-    return np.array([result, 1 - result])
+    prevalences = np.array([result, 1 - result])
+
+    if return_distance:
+        return [prevalences, min(distances)]
+
+    return prevalences
 
 def DySyn(ts, measure, MF=np.arange(0.1, 1.0, 0.2), write_distribution=None, distributions_dir=None, return_metadata=False):
     # MF = np.arange(0.2, 0.7, 0.2) # mudar de 0.2 a 0.7
