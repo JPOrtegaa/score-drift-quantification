@@ -1,3 +1,5 @@
+import os
+import json
 import numpy as np
 import pandas as pd
 from sklearn.model_selection import StratifiedKFold, train_test_split
@@ -160,3 +162,21 @@ class CDT:
     # Return if the test mean has concept drift based on the threshold.
     def predict(self, distance):
         return (distance >= self.thr)
+
+    # Persist the DyS distances collected during fit() to a CSV file.
+    # Appends one row per binary classifier so that every classifier of a
+    # dataset shares a single "distances.csv". Each row stores the model id,
+    # the fitted threshold, and the serialized distance array.
+    def save_distances(self, path, model_id=None):
+        if self.distances is None:
+            raise ValueError("No distances to save; call fit() before save_distances().")
+
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+
+        row = {
+            "model_id": model_id,
+            "thr": self.thr,
+            "distances": json.dumps(np.asarray(self.distances).tolist()),
+        }
+        header = not os.path.exists(path)
+        pd.DataFrame([row]).to_csv(path, mode="a", header=header, index=False)
