@@ -167,7 +167,9 @@ class CDT:
     # Appends one row per binary classifier so that every classifier of a
     # dataset shares a single "distances.csv". Each row stores the model id,
     # the fitted threshold, and the serialized distance array.
-    def save_distances(self, path, model_id=None):
+    # Pass overwrite=True for the first classifier of a dataset so any file
+    # from a previous run is rewritten from scratch instead of appended to.
+    def save_distances(self, path, model_id=None, overwrite=False):
         if self.distances is None:
             raise ValueError("No distances to save; call fit() before save_distances().")
 
@@ -178,5 +180,6 @@ class CDT:
             "thr": self.thr,
             "distances": json.dumps(np.asarray(self.distances).tolist()),
         }
-        header = not os.path.exists(path)
-        pd.DataFrame([row]).to_csv(path, mode="a", header=header, index=False)
+        mode = "w" if overwrite else "a"
+        header = overwrite or not os.path.exists(path)
+        pd.DataFrame([row]).to_csv(path, mode=mode, header=header, index=False)

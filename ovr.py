@@ -254,11 +254,10 @@ def train_classifier(train_df):
     y_train = train_df['class']
 
     # CDT calculation
-    cdt_thr = None
+    cdt = None
     if len(y_train.unique()) == 2:  # Binary only
         cdt = CDT(classifier=RandomForestClassifier(n_estimators=200, random_state=42, n_jobs=-1))
         cdt.fit(train_df)
-        cdt_thr = cdt.thr
 
     skf = StratifiedKFold(n_splits=10, shuffle=True, random_state=42)
     clf = LogisticRegression(random_state=42, max_iter=2000, n_jobs=-1)
@@ -286,13 +285,28 @@ def train_classifier(train_df):
         pos_scores = validation_scores[validation_scores[:, 2] == 1, 1].astype(float)
         neg_scores = validation_scores[validation_scores[:, 2] == 0, 1].astype(float)
 
-    return clf, tpr_fpr, pos_scores, neg_scores, validation_scores, cdt_thr
+    return clf, tpr_fpr, pos_scores, neg_scores, validation_scores, cdt
 
-def train_one_vs_rest_classifiers(trains):
+def train_one_vs_rest_classifiers(trains, dataset_dir=None):
     classifiers = {}
 
+    # All binary classifiers of the dataset share a single distances.csv,
+    # storing the DyS distances measured inside each CDT. The first classifier
+    # rewrites the file from scratch (so rows from a previous run don't
+    # accumulate and duplicate each class); the rest append to it.
+    distances_path = os.path.join(dataset_dir, "distances.csv") if dataset_dir else None
+    first_save = True
+
     for cls, bin_train_df in trains.items():
-        clf, tpr_fpr, pos_scores, neg_scores, _, cdt_thr = train_classifier(bin_train_df)
+        clf, tpr_fpr, pos_scores, neg_scores, _, cdt = train_classifier(bin_train_df)
+
+        cdt_thr = None
+        if cdt is not None:
+            cdt_thr = cdt.thr
+            if distances_path is not None:
+                cdt.save_distances(distances_path, model_id=cls, overwrite=first_save)
+                first_save = False
+
         classifiers[cls] = {
             "model": clf,
             "tpr_fpr": tpr_fpr,
@@ -612,7 +626,13 @@ def process_single_dataset(dataset_path):
     trains = binarize_dataset(train_df)
     tests = binarize_dataset(test_df)
 
-    classifiers = train_one_vs_rest_classifiers(trains)
+    classifiers = train_one_vs_rest_classifiers(trains, dataset_dir)
+
+    # TEMPORARY: stop after the CDT distances are saved (cdt.save_distances).
+    # Remove this block to run the full experiment again.
+    print(f"Distances saved for: {dataset_name}. Stopping early (temporary).")
+    return
+
     classifier, _, _, _, validation_scores, _ = train_classifier(train_df)
     
     quantifiers = {
