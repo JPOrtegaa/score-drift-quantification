@@ -627,12 +627,6 @@ def process_single_dataset(dataset_path):
     tests = binarize_dataset(test_df)
 
     classifiers = train_one_vs_rest_classifiers(trains, dataset_dir)
-
-    # TEMPORARY: stop after the CDT distances are saved (cdt.save_distances).
-    # Remove this block to run the full experiment again.
-    print(f"Distances saved for: {dataset_name}. Stopping early (temporary).")
-    return
-
     classifier, _, _, _, validation_scores, _ = train_classifier(train_df)
     
     quantifiers = {
