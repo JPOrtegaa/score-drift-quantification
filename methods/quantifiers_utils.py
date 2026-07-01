@@ -85,14 +85,15 @@ def MoSS(n, alpha, m):
 # Concept Distance Threshold class implementation (CDT)
 class CDT:
 
-    def __init__(self, classifier, sizes=1000, repetitions=10, pos_prev = np.linspace(0, 1, 100)):
+    def __init__(self, classifier, sizes=1000, repetitions=10, pos_prev = np.linspace(0, 1, 100), measure="topsoe"):
         self.classifier = classifier
         # Allow a single batch size (scalar) or multiple sizes (iterable)
         self.sizes = [sizes] if np.isscalar(sizes) else sizes
         self.repetitions = repetitions
         self.pos_prev = pos_prev
+        self.measure = measure
         self.distances = None
-        self.thr = None
+        self.thr_upper, self.thr_lower = None, None
 
     # Train classifier with k-fold cross-validation and store the positive and negative scores.
     def _train_classifier(self, train):
@@ -152,16 +153,18 @@ class CDT:
 
                     test_scores = self._test_batch(validation, n_pos, size)
 
-                    _, distance = DyS(pos_scores, neg_scores, test_scores, return_distance=True)
+                    _, distance = DyS(pos_scores, neg_scores, test_scores, return_distance=True, measure=self.measure)
                     distances.append(distance)
 
         # Threshold calculation based on the extracted distances (mean + 2*std)
         self.distances = np.array(distances)
-        self.thr = np.mean(distances) + (2 * np.std(distances))
+        sd = np.std(distances)
+        self.thr_upper = np.mean(distances) + (2 * sd)
+        self.thr_lower = np.mean(distances) - (2 * sd)
 
     # Return if the test mean has concept drift based on the threshold.
     def predict(self, distance):
-        return (distance >= self.thr)
+        return (distance >= self.thr_upper) or (distance <= self.thr_lower)
 
     # Persist the DyS distances collected during fit() to a CSV file.
     # Appends one row per binary classifier so that every classifier of a
@@ -177,7 +180,8 @@ class CDT:
 
         row = {
             "model_id": model_id,
-            "thr": self.thr,
+            "thr_lower": self.thr_lower,
+            "thr_upper": self.thr_upper,
             "distances": json.dumps(np.asarray(self.distances).tolist()),
         }
         mode = "w" if overwrite else "a"
