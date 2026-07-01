@@ -249,13 +249,13 @@ def train_quantifiers(train_df):
 
     return models
 
-def train_classifier(train_df):
+def train_classifier(train_df, fit_cdt=True):
     X_train = train_df.drop(columns=['class'])
     y_train = train_df['class']
 
     # CDT calculation
     cdt = None
-    if len(y_train.unique()) == 2:  # Binary only
+    if fit_cdt and len(y_train.unique()) == 2:  # Binary only
         cdt = CDT(classifier=RandomForestClassifier(n_estimators=200, random_state=42, n_jobs=-1))
         cdt.fit(train_df)
 
@@ -290,22 +290,20 @@ def train_classifier(train_df):
 def train_one_vs_rest_classifiers(trains, dataset_dir=None):
     classifiers = {}
 
-    # All binary classifiers of the dataset share a single distances.csv,
-    # storing the DyS distances measured inside each CDT. The first classifier
-    # rewrites the file from scratch (so rows from a previous run don't
-    # accumulate and duplicate each class); the rest append to it.
+    # TEMPORARY: reuse the pre-computed CDT thresholds from the existing
+    # distances.csv instead of training a new CDT per model. No distances file
+    # is (re)written. Revert by restoring the CDT-training block below and the
+    # fit_cdt/save_distances logic.
     distances_path = os.path.join(dataset_dir, "distances.csv") if dataset_dir else None
-    first_save = True
+    thr_by_model = {}
+    if distances_path is not None and os.path.exists(distances_path):
+        thr_df = pd.read_csv(distances_path, usecols=["model_id", "thr"])
+        thr_by_model = dict(zip(thr_df["model_id"].astype(str), thr_df["thr"]))
 
     for cls, bin_train_df in trains.items():
-        clf, tpr_fpr, pos_scores, neg_scores, _, cdt = train_classifier(bin_train_df)
+        clf, tpr_fpr, pos_scores, neg_scores, _, _ = train_classifier(bin_train_df, fit_cdt=False)
 
-        cdt_thr = None
-        if cdt is not None:
-            cdt_thr = cdt.thr
-            if distances_path is not None:
-                cdt.save_distances(distances_path, model_id=cls, overwrite=first_save)
-                first_save = False
+        cdt_thr = thr_by_model.get(str(cls), None)
 
         classifiers[cls] = {
             "model": clf,
