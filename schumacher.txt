@@ -1,0 +1,15 @@
+python ovr.py -dts datasets/schumacher/bike_sharing_data.csv > logs/schumacher/bike_sharing_data.log 2>&1
+python ovr.py -dts datasets/schumacher/blog_feedback_data.csv > logs/schumacher/blog_feedback_data.log 2>&1
+python ovr.py -dts datasets/schumacher/concrete_data.csv > logs/schumacher/concrete_data.log 2>&1
+python ovr.py -dts datasets/schumacher/contraceptive_data.csv > logs/schumacher/contraceptive_data.log 2>&1
+python ovr.py -dts datasets/schumacher/diamonds_data.csv > logs/schumacher/diamonds_data.log 2>&1
+python ovr.py -dts datasets/schumacher/drugs_data.csv > logs/schumacher/drugs_data.log 2>&1
+python ovr.py -dts datasets/schumacher/energy_data.csv > logs/schumacher/energy_data.log 2>&1
+python ovr.py -dts datasets/schumacher/fifa19_data.csv > logs/schumacher/fifa19_data.log 2>&1
+python ovr.py -dts datasets/schumacher/news_popularity_data.csv > logs/schumacher/news_popularity_data.log 2>&1
+python ovr.py -dts datasets/schumacher/skillcraft_data.csv > logs/schumacher/skillcraft_data.log 2>&1
+python ovr.py -dts datasets/schumacher/superconductor_data.csv > logs/schumacher/superconductor_data.log 2>&1
+python ovr.py -dts datasets/schumacher/turk_student_eval_data.csv > logs/schumacher/turk_student_eval_data.log 2>&1
+python ovr.py -dts datasets/schumacher/video_game_sales_data.csv > logs/schumacher/video_game_sales_data.log 2>&1
+python ovr.py -dts datasets/schumacher/yeast_data.csv > logs/schumacher/yeast_data.log 2>&1
+python ovr.py -dts datasets/schumacher/first-order-theorem/theorem.csv > logs/schumacher/theorem.log 2>&1

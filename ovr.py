@@ -38,6 +38,9 @@ import datasets.openml.preprocess as openml_preprocess
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'datasets', 'ours'))
 import datasets.ours.preprocess as ours_preprocess
 
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'datasets', 'schumacher'))
+import datasets.schumacher.preprocess as schumacher_preprocess
+
 from methods.quantifiers import (
     CC,
     CC2,
@@ -75,6 +78,15 @@ import argparse
 # {test_scores,<class>,multiclass} file structure). Set to False to skip writing
 # them; the final <dataset>_results.csv is always written.
 SAVE_DISTRIBUTIONS = False
+
+# Toggle the CDT threshold source. When True, reuse the pre-computed CDT
+# thresholds from an existing cdt_results/<dataset>/distances.csv instead of
+# training a new CDT per binary classifier (no distances file is rewritten).
+# When False, train a fresh CDT per binary classifier and persist its DyS
+# distances/thresholds to distances.csv. The distances file carries two-sided
+# thresholds (thr_lower/thr_upper); a legacy file with a single `thr` column is
+# read as the upper bound only (lower = None).
+USE_PRECOMPUTED_CDT_DISTANCES = False
 
 def serialize_scores(scores):
     if scores is None:
@@ -256,7 +268,7 @@ def train_classifier(train_df, fit_cdt=True):
     # CDT calculation
     cdt = None
     if fit_cdt and len(y_train.unique()) == 2:  # Binary only
-        cdt = CDT(classifier=RandomForestClassifier(n_estimators=200, random_state=42, n_jobs=-1))
+        cdt = CDT(classifier=RandomForestClassifier(n_estimators=200, random_state=42, n_jobs=-1), measure="topsoe")
         cdt.fit(train_df)
 
     skf = StratifiedKFold(n_splits=10, shuffle=True, random_state=42)
@@ -290,20 +302,45 @@ def train_classifier(train_df, fit_cdt=True):
 def train_one_vs_rest_classifiers(trains, dataset_dir=None):
     classifiers = {}
 
-    # TEMPORARY: reuse the pre-computed CDT thresholds from the existing
-    # distances.csv instead of training a new CDT per model. No distances file
-    # is (re)written. Revert by restoring the CDT-training block below and the
-    # fit_cdt/save_distances logic.
     distances_path = os.path.join(dataset_dir, "distances.csv") if dataset_dir else None
+
+    # When reusing pre-computed thresholds, load them from distances.csv up
+    # front (no distances file is rewritten). The file carries two-sided
+    # thresholds (thr_lower/thr_upper); a legacy file with a single `thr` column
+    # is read as the upper bound only (lower = None).
     thr_by_model = {}
-    if distances_path is not None and os.path.exists(distances_path):
-        thr_df = pd.read_csv(distances_path, usecols=["model_id", "thr"])
-        thr_by_model = dict(zip(thr_df["model_id"].astype(str), thr_df["thr"]))
+    if USE_PRECOMPUTED_CDT_DISTANCES and distances_path is not None and os.path.exists(distances_path):
+        thr_df = pd.read_csv(distances_path, usecols=lambda c: c != "distances")
+        has_two_sided = "thr_upper" in thr_df.columns
+        for r in thr_df.itertuples(index=False):
+            model = str(r.model_id)
+            if has_two_sided:
+                lower = getattr(r, "thr_lower", None)
+                thr_by_model[model] = {
+                    "lower": None if lower is None or pd.isna(lower) else float(lower),
+                    "upper": float(r.thr_upper),
+                }
+            else:
+                thr_by_model[model] = {"lower": None, "upper": float(r.thr)}
 
+    first_saved = True
     for cls, bin_train_df in trains.items():
-        clf, tpr_fpr, pos_scores, neg_scores, _, _ = train_classifier(bin_train_df, fit_cdt=False)
+        # Only train a fresh CDT when we are not reusing pre-computed thresholds.
+        fit_cdt = not USE_PRECOMPUTED_CDT_DISTANCES
+        clf, tpr_fpr, pos_scores, neg_scores, _, cdt = train_classifier(bin_train_df, fit_cdt=fit_cdt)
 
-        cdt_thr = thr_by_model.get(str(cls), None)
+        if USE_PRECOMPUTED_CDT_DISTANCES:
+            cdt_thr = thr_by_model.get(str(cls), None)
+        elif cdt is not None:
+            cdt_thr = {"lower": cdt.thr_lower, "upper": cdt.thr_upper}
+            # Persist the freshly-computed distances/thresholds so they can be
+            # reused on a later run. Overwrite for the first classifier of the
+            # dataset, then append one row per subsequent classifier.
+            if distances_path is not None:
+                cdt.save_distances(distances_path, model_id=cls, overwrite=first_saved)
+                first_saved = False
+        else:
+            cdt_thr = None
 
         classifiers[cls] = {
             "model": clf,
@@ -334,18 +371,22 @@ def test_classifier(batch, classifier, quantifiers, validation_scores=None, qnt_
         selected_p_scores = None
         selected_n_scores = None
 
-        # CDT drift detector (binary only): set up once with the trained threshold
-        # and the DyS distance of this batch (reused for every synthetic quantifier).
+        # CDT drift detector (binary only): set up once with the trained
+        # thresholds and the DyS distance of this batch (reused for every
+        # synthetic quantifier). cdt_thr carries the two-sided bounds; a missing
+        # lower bound (legacy files) becomes -inf so only the upper bound gates.
         cdt = None
         dys_distance = None
         if cdt_thr is not None:
             cdt = CDT(classifier=None)
-            cdt.thr = cdt_thr
-            _, dys_distance = DyS(pos_scores, neg_scores, test_scores, return_distance=True)
+            cdt.thr_upper = cdt_thr["upper"]
+            cdt.thr_lower = cdt_thr["lower"] if cdt_thr["lower"] is not None else -np.inf
+            _, dys_distance = DyS(pos_scores, neg_scores, test_scores, return_distance=True, measure="topsoe")
 
         for q in quantifiers:
-            # CDT-gated variant ({base}_cdt): drift (distance >= thr) -> synthetic
-            # version, otherwise fall back to the base (non-synthetic) quantifier.
+            # CDT-gated variant ({base}_cdt): drift (distance outside
+            # [thr_lower, thr_upper]) -> synthetic version, otherwise fall back
+            # to the base (non-synthetic) quantifier.
             if q.endswith("_cdt"):
                 base_q = q[:-4]
                 syn_q = "DySyn" if base_q == "DyS" else f"{base_q}_syn"
@@ -552,13 +593,33 @@ def pre_process_dts(df, dataset_name, dataset_path):
         'dataset_44482_amazon-commerce-reviews_seed_4_nrows_2000_nclasses_10_ncols_100_stratify_True': openml_preprocess.preprocess_amazon_commerce_reviews_subset,
         'fars': openml_preprocess.preprocess_fars,
     }
-    
+
+    schumacher_datasets = {
+        'bike_sharing_data': schumacher_preprocess.preprocess_bike,
+        'blog_feedback_data': schumacher_preprocess.preprocess_blog_feedback,
+        'concrete_data': schumacher_preprocess.preprocess_concrete,
+        'contraceptive_data': schumacher_preprocess.preprocess_contraceptive,
+        'diamonds_data': schumacher_preprocess.preprocess_diamonds,
+        'drugs_data': schumacher_preprocess.preprocess_drugs,
+        'energy_data': schumacher_preprocess.preprocess_energy,
+        'fifa19_data': schumacher_preprocess.preprocess_fifa19,
+        'news_popularity_data': schumacher_preprocess.preprocess_news_popularity,
+        'skillcraft_data': schumacher_preprocess.preprocess_skillcraft,
+        'superconductor_data': schumacher_preprocess.preprocess_superconductor,
+        'turk_student_eval_data': schumacher_preprocess.preprocess_turk_student_eval,
+        'video_game_sales_data': schumacher_preprocess.preprocess_video_game_sales,
+        'yeast_data': schumacher_preprocess.preprocess_yeast,
+        'theorem': schumacher_preprocess.preprocess_theorem,
+    }
+
     # Apply preprocessing based on dataset name
     if dataset_name in kaggle_datasets:
         df = kaggle_datasets[dataset_name](df)
     elif dataset_name in openml_datasets:
         df = openml_datasets[dataset_name](df)
-        
+    elif dataset_name in schumacher_datasets:
+        df = schumacher_datasets[dataset_name](df)
+
     # Keep existing preprocessing for other datasets
     elif dataset_name == 'Avila':
         df = df.rename(columns={'V11': 'class'})
@@ -689,7 +750,7 @@ def process_single_dataset(dataset_path):
         validation_scores,
         qnt_models,
         test_scores_dir,
-        n_jobs=23,
+        n_jobs=-1,
     )
 
     # Flatten results into rows for CSV
