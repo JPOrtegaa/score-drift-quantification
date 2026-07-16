@@ -609,7 +609,7 @@ def pre_process_dts(df, dataset_name, dataset_path):
         'turk_student_eval_data': schumacher_preprocess.preprocess_turk_student_eval,
         'video_game_sales_data': schumacher_preprocess.preprocess_video_game_sales,
         'yeast_data': schumacher_preprocess.preprocess_yeast,
-        'theorem': schumacher_preprocess.preprocess_theorem,
+        'theorem_data': schumacher_preprocess.preprocess_theorem,
     }
 
     # Apply preprocessing based on dataset name
@@ -750,7 +750,7 @@ def process_single_dataset(dataset_path):
         validation_scores,
         qnt_models,
         test_scores_dir,
-        n_jobs=-1,
+        n_jobs=12,
     )
 
     # Flatten results into rows for CSV
