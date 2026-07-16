@@ -6,7 +6,11 @@ from datasets.feature_selection import ensemble_feature_selection
 def preprocess_spectrometer(df):
     # Drop ID-type column
     df = df.drop('ID-type', axis=1)
-    
+
+    # Keep only classes with at least 10 samples (as in the original ovr_results runs)
+    counts = df['class'].value_counts()
+    df = df[df['class'].isin(counts[counts >= 10].index)]
+
     return df
 
 
@@ -22,11 +26,19 @@ def preprocess_bach_choral_harmony(df):
     # V15 (Bass pitch class): one-hot encoding
     v15_dummies = pd.get_dummies(df['V15'], prefix='Bass')
     df = pd.concat([df.drop('V15', axis=1), v15_dummies], axis=1)
-    
+
+    # Keep only classes with at least 10 samples (as in the original ovr_results runs)
+    counts = df['class'].value_counts()
+    df = df[df['class'].isin(counts[counts >= 10].index)]
+
     return df
 
 
 def preprocess_fars(df):
+    # Keep only classes with at least 10 samples (as in the original ovr_results runs)
+    counts = df['class'].value_counts()
+    df = df[df['class'].isin(counts[counts >= 10].index)]
+
     df, _ = train_test_split(df, train_size=10000, stratify=df['class'], random_state=42)
     return df
 
