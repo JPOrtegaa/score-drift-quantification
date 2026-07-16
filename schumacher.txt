@@ -12,4 +12,4 @@ python ovr.py -dts datasets/schumacher/superconductor_data.csv > logs/schumacher
 python ovr.py -dts datasets/schumacher/turk_student_eval_data.csv > logs/schumacher/turk_student_eval_data.log 2>&1
 python ovr.py -dts datasets/schumacher/video_game_sales_data.csv > logs/schumacher/video_game_sales_data.log 2>&1
 python ovr.py -dts datasets/schumacher/yeast_data.csv > logs/schumacher/yeast_data.log 2>&1
-python ovr.py -dts datasets/schumacher/first-order-theorem/theorem.csv > logs/schumacher/theorem.log 2>&1
+python ovr.py -dts datasets/schumacher/theorem_data.csv > logs/schumacher/theorem_data.log 2>&1
