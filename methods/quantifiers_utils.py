@@ -1,5 +1,6 @@
 import os
 import json
+import pdb
 import numpy as np
 import pandas as pd
 from sklearn.model_selection import StratifiedKFold, train_test_split
@@ -7,6 +8,11 @@ from sklearn.model_selection import StratifiedKFold, train_test_split
 # from methods.quantifiers import DyS
 
 def getTPRandFPRbyThreshold(validation_scores):
+    # validation_scores is (score_negative, score_positive, label), matching
+    # np.column_stack((clf.predict_proba(X), y)) for classes_ = [0, 1]. Column 1
+    # is the positive score, which is what the quantifiers threshold at test
+    # time; column 0 is its complement. MoSS() duplicates its score into both
+    # columns, so its callers are unaffected by which of the two is read.
     unique_scores = np.arange(0.01, 1.00, 0.01)
     arrayOfTPRandFPRByTr = []
 
@@ -14,8 +20,8 @@ def getTPRandFPRbyThreshold(validation_scores):
     total_negative = np.sum(validation_scores[:, 2] == 0)
 
     for threshold in unique_scores:
-        fp = np.sum((validation_scores[:, 0] > threshold) & (validation_scores[:, 2] == 0))
-        tp = np.sum((validation_scores[:, 0] > threshold) & (validation_scores[:, 2] == 1))
+        fp = np.sum((validation_scores[:, 1] > threshold) & (validation_scores[:, 2] == 0))
+        tp = np.sum((validation_scores[:, 1] > threshold) & (validation_scores[:, 2] == 1))
         tpr = tp / total_positive if total_positive > 0 else 0
         fpr = fp / total_negative if total_negative > 0 else 0
 

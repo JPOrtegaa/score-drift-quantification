@@ -1,0 +1,81 @@
+# Full re-run after the OvR/TPR-FPR/validation-label fixes.
+# Output goes to ovr_results_corrected/<dataset>/ (see RESULTS_ROOT in ovr.py).
+# Run as a shell script, or with: python ovr.py -exp corrected.txt
+# (the -exp runner ignores the > logs/... redirect; it only applies when run via a shell).
+
+# --- kaggle ---
+python ovr.py -dts datasets/kaggle/cirrhosis.csv > logs/corrected/kaggle/cirrhosis.log 2>&1
+python ovr.py -dts datasets/kaggle/customer_segmentation.csv > logs/corrected/kaggle/customer_segmentation.log 2>&1
+python ovr.py -dts datasets/kaggle/fashion-mnist.csv > logs/corrected/kaggle/fashion-mnist.log 2>&1
+python ovr.py -dts datasets/kaggle/healthcare.csv > logs/corrected/kaggle/healthcare.log 2>&1
+python ovr.py -dts datasets/kaggle/IRIS.csv > logs/corrected/kaggle/IRIS.log 2>&1
+python ovr.py -dts datasets/kaggle/music_genre.csv > logs/corrected/kaggle/music_genre.log 2>&1
+python ovr.py -dts datasets/kaggle/predictive_maintenance.csv > logs/corrected/kaggle/predictive_maintenance.log 2>&1
+python ovr.py -dts datasets/kaggle/star_classification.csv > logs/corrected/kaggle/star_classification.log 2>&1
+python ovr.py -dts datasets/kaggle/Student_performance_data.csv > logs/corrected/kaggle/Student_performance_data.log 2>&1
+python ovr.py -dts datasets/kaggle/zoo.csv > logs/corrected/kaggle/zoo.log 2>&1
+
+# --- openml ---
+python ovr.py -dts datasets/openml/dataset_1457_amazon-commerce-reviews.csv > logs/corrected/openml/dataset_1457_amazon-commerce-reviews.log 2>&1
+python ovr.py -dts datasets/openml/dataset_1491_one-hundred-plants-margin.csv > logs/corrected/openml/dataset_1491_one-hundred-plants-margin.log 2>&1
+python ovr.py -dts datasets/openml/dataset_1492_one-hundred-plants-shape.csv > logs/corrected/openml/dataset_1492_one-hundred-plants-shape.log 2>&1
+python ovr.py -dts datasets/openml/dataset_1493_one-hundred-plants-texture.csv > logs/corrected/openml/dataset_1493_one-hundred-plants-texture.log 2>&1
+python ovr.py -dts datasets/openml/dataset_313_spectrometer.csv > logs/corrected/openml/dataset_313_spectrometer.log 2>&1
+python ovr.py -dts datasets/openml/dataset_44478_amazon-commerce-reviews_seed_0_nrows_2000_nclasses_10_ncols_100_stratify_True.csv > logs/corrected/openml/dataset_44478_amazon-commerce-reviews_seed_0_nrows_2000_nclasses_10_ncols_100_stratify_True.log 2>&1
+python ovr.py -dts datasets/openml/dataset_44479_amazon-commerce-reviews_seed_1_nrows_2000_nclasses_10_ncols_100_stratify_True.csv > logs/corrected/openml/dataset_44479_amazon-commerce-reviews_seed_1_nrows_2000_nclasses_10_ncols_100_stratify_True.log 2>&1
+python ovr.py -dts datasets/openml/dataset_44480_amazon-commerce-reviews_seed_2_nrows_2000_nclasses_10_ncols_100_stratify_True.csv > logs/corrected/openml/dataset_44480_amazon-commerce-reviews_seed_2_nrows_2000_nclasses_10_ncols_100_stratify_True.log 2>&1
+python ovr.py -dts datasets/openml/dataset_44481_amazon-commerce-reviews_seed_3_nrows_2000_nclasses_10_ncols_100_stratify_True.csv > logs/corrected/openml/dataset_44481_amazon-commerce-reviews_seed_3_nrows_2000_nclasses_10_ncols_100_stratify_True.log 2>&1
+python ovr.py -dts datasets/openml/dataset_44482_amazon-commerce-reviews_seed_4_nrows_2000_nclasses_10_ncols_100_stratify_True.csv > logs/corrected/openml/dataset_44482_amazon-commerce-reviews_seed_4_nrows_2000_nclasses_10_ncols_100_stratify_True.log 2>&1
+python ovr.py -dts datasets/openml/dataset_4552_BachChoralHarmony.csv > logs/corrected/openml/dataset_4552_BachChoralHarmony.log 2>&1
+python ovr.py -dts datasets/openml/fabert.csv > logs/corrected/openml/fabert.log 2>&1
+python ovr.py -dts datasets/openml/fars.csv > logs/corrected/openml/fars.log 2>&1
+python ovr.py -dts datasets/openml/microaggregation2.csv > logs/corrected/openml/microaggregation2.log 2>&1
+
+# --- uci ---
+python ovr.py -dts datasets/uci/uci_42123_article_influence.csv > logs/corrected/uci/uci_42123_article_influence.log 2>&1
+python ovr.py -dts datasets/uci/wine.csv > logs/corrected/uci/wine.log 2>&1
+
+# --- quapy ---
+python ovr.py -dts datasets/quapy_data/academic-success.csv > logs/corrected/quapy/academic-success.log 2>&1
+python ovr.py -dts datasets/quapy_data/digits.csv > logs/corrected/quapy/digits.log 2>&1
+python ovr.py -dts datasets/quapy_data/dry-bean.csv > logs/corrected/quapy/dry-bean.log 2>&1
+python ovr.py -dts datasets/quapy_data/letter.csv > logs/corrected/quapy/letter.log 2>&1
+python ovr.py -dts datasets/quapy_data/wine-quality.csv > logs/corrected/quapy/wine-quality.log 2>&1
+
+# --- ours ---
+python ovr.py -dts datasets/ours/Avila.csv > logs/corrected/ours/Avila.log 2>&1
+python ovr.py -dts datasets/ours/Chessgame.csv > logs/corrected/ours/Chessgame.log 2>&1
+python ovr.py -dts datasets/ours/Covertype.csv > logs/corrected/ours/Covertype.log 2>&1
+python ovr.py -dts datasets/ours/Dermatology.csv > logs/corrected/ours/Dermatology.log 2>&1
+python ovr.py -dts datasets/ours/HAR.csv > logs/corrected/ours/HAR.log 2>&1
+python ovr.py -dts datasets/ours/Land-use.csv > logs/corrected/ours/Land-use.log 2>&1
+python ovr.py -dts datasets/ours/Mfeat.csv > logs/corrected/ours/Mfeat.log 2>&1
+python ovr.py -dts datasets/ours/Mfeat_icdm21.csv > logs/corrected/ours/Mfeat_icdm21.log 2>&1
+python ovr.py -dts datasets/ours/Mosquitoes.csv > logs/corrected/ours/Mosquitoes.log 2>&1
+python ovr.py -dts datasets/ours/Nursery.csv > logs/corrected/ours/Nursery.log 2>&1
+python ovr.py -dts datasets/ours/PhishingURL.csv > logs/corrected/ours/PhishingURL.log 2>&1
+python ovr.py -dts datasets/ours/Satimage.csv > logs/corrected/ours/Satimage.log 2>&1
+python ovr.py -dts datasets/ours/Walking.csv > logs/corrected/ours/Walking.log 2>&1
+
+# --- schumacher ---
+python ovr.py -dts datasets/schumacher/bike_sharing_data.csv > logs/corrected/schumacher/bike_sharing_data.log 2>&1
+python ovr.py -dts datasets/schumacher/blog_feedback_data.csv > logs/corrected/schumacher/blog_feedback_data.log 2>&1
+python ovr.py -dts datasets/schumacher/concrete_data.csv > logs/corrected/schumacher/concrete_data.log 2>&1
+python ovr.py -dts datasets/schumacher/contraceptive_data.csv > logs/corrected/schumacher/contraceptive_data.log 2>&1
+python ovr.py -dts datasets/schumacher/diamonds_data.csv > logs/corrected/schumacher/diamonds_data.log 2>&1
+python ovr.py -dts datasets/schumacher/drugs_data.csv > logs/corrected/schumacher/drugs_data.log 2>&1
+python ovr.py -dts datasets/schumacher/energy_data.csv > logs/corrected/schumacher/energy_data.log 2>&1
+python ovr.py -dts datasets/schumacher/fifa19_data.csv > logs/corrected/schumacher/fifa19_data.log 2>&1
+python ovr.py -dts datasets/schumacher/news_popularity_data.csv > logs/corrected/schumacher/news_popularity_data.log 2>&1
+python ovr.py -dts datasets/schumacher/skillcraft_data.csv > logs/corrected/schumacher/skillcraft_data.log 2>&1
+python ovr.py -dts datasets/schumacher/superconductor_data.csv > logs/corrected/schumacher/superconductor_data.log 2>&1
+python ovr.py -dts datasets/schumacher/turk_student_eval_data.csv > logs/corrected/schumacher/turk_student_eval_data.log 2>&1
+python ovr.py -dts datasets/schumacher/video_game_sales_data.csv > logs/corrected/schumacher/video_game_sales_data.log 2>&1
+python ovr.py -dts datasets/schumacher/yeast_data.csv > logs/corrected/schumacher/yeast_data.log 2>&1
+python ovr.py -dts datasets/schumacher/first-order-final/theorem_data.csv > logs/corrected/schumacher/theorem_data.log 2>&1
+
+# --- synthetic ---
+python ovr.py -dts datasets/synthetic/global_covariate_shift2.csv > logs/corrected/synthetic/global_covariate_shift2.log 2>&1
+python ovr.py -dts datasets/synthetic/horizontal_mix.csv > logs/corrected/synthetic/horizontal_mix.log 2>&1
+python ovr.py -dts datasets/synthetic/label_shift_(1,1).csv > logs/corrected/synthetic/label_shift_(1,1).log 2>&1
+python ovr.py -dts datasets/synthetic/label_shift_(5,5).csv > logs/corrected/synthetic/label_shift_(5,5).log 2>&1
