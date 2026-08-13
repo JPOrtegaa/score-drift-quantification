@@ -75,7 +75,7 @@ import argparse
 
 # Root folder for all per-dataset output (results CSV, distances.csv,
 # test_scores/, distributions). Each dataset gets its own subfolder underneath.
-RESULTS_ROOT = "ovr_results_corrected"
+RESULTS_ROOT = "ovr_results_corrected_topsoe_binrange"
 
 # Toggle persistence of score distributions: training distributions, per-batch
 # test scores, and the DySyn selected distributions (the <RESULTS_ROOT>/<dataset>/
@@ -96,6 +96,18 @@ RUN_CDT = False
 # thresholds (thr_lower/thr_upper); a legacy file with a single `thr` column is
 # read as the upper bound only (lower = None).
 USE_PRECOMPUTED_CDT_DISTANCES = False
+
+# Toggle the multiclass (aggregate) quantifiers. When False the multiclass list
+# is emptied and none of the machinery behind it runs: no PWK/HDx fit, no extra
+# multiclass classifier with its own 10-fold cross-validation, no per-batch
+# multiclass prediction. Only the binary and synthetic quantifiers are evaluated,
+# and the results CSV simply has no GAC/GPAC/EMQ/KDEy*/FM/HDx/PWK/CC2 rows.
+RUN_MULTICLASS = False
+
+# Distance measure used by every synthetic (MoSS-based) quantifier: DySyn and
+# the {base}_syn family. Keep it in one place so the standalone DySyn call in
+# test_classifier cannot drift away from the quantifier map.
+SYN_MEASURE = "topsoe"
 
 # Index of the last training bag for the synthetic datasets (see
 # datasets/synthetic/). Those files carry their own temporal batching in the `t`
@@ -157,6 +169,7 @@ def persist_batch_scores(test_scores_dir, batch_index, model_id, incoming_test_s
 
 def get_quantifier_map(test_scores, tpr_fpr, pos_scores, neg_scores):
     """Returns a dictionary mapping quantifier names to their callable functions."""
+    measure = SYN_MEASURE
     return {
         "CC": lambda: CC(test_scores, thr=0.5),
         "PCC": lambda: PCC(test_scores),
@@ -169,16 +182,16 @@ def get_quantifier_map(test_scores, tpr_fpr, pos_scores, neg_scores):
         "X": lambda: X(test_scores, tpr_fpr),
         "SMM": lambda: SMM(pos_scores, neg_scores, test_scores),
         "DyS": lambda: DyS(pos_scores, neg_scores, test_scores),
-        "DySyn": lambda: DySyn(test_scores, measure="hellinger")[0],
+        "DySyn": lambda: DySyn(test_scores, measure=measure)[0],
         "HDy": lambda: HDy(pos_scores, neg_scores, test_scores)[0],
-        "ACC_syn": lambda: ACCSyn(test_scores, measure="hellinger", MF_dysyn=np.arange(0.1, 1.0, 0.2)),
-        "PACC_syn": lambda: PACCSyn(test_scores, measure="hellinger", MF_dysyn=np.arange(0.1, 1.0, 0.2)),
-        "X_syn": lambda: XSyn(test_scores, measure="hellinger", MF_dysyn=np.arange(0.1, 1.0, 0.2)),
-        "MAX_syn": lambda: MAXSyn(test_scores, measure="hellinger", MF_dysyn=np.arange(0.1, 1.0, 0.2)),
-        "T50_syn": lambda: T50Syn(test_scores, measure="hellinger", MF_dysyn=np.arange(0.1, 1.0, 0.2)),
-        "MS_syn": lambda: MSSyn(test_scores, measure="hellinger", MF_dysyn=np.arange(0.1, 1.0, 0.2)),
-        "MS2_syn": lambda: MS2Syn(test_scores, measure="hellinger", MF_dysyn=np.arange(0.1, 1.0, 0.2)),
-        "SMM_syn": lambda: SMMSyn(test_scores, measure="hellinger", MF_dysyn=np.arange(0.1, 1.0, 0.2)),
+        "ACC_syn": lambda: ACCSyn(test_scores, measure=measure, MF_dysyn=np.arange(0.1, 1.0, 0.2)),
+        "PACC_syn": lambda: PACCSyn(test_scores, measure=measure, MF_dysyn=np.arange(0.1, 1.0, 0.2)),
+        "X_syn": lambda: XSyn(test_scores, measure=measure, MF_dysyn=np.arange(0.1, 1.0, 0.2)),
+        "MAX_syn": lambda: MAXSyn(test_scores, measure=measure, MF_dysyn=np.arange(0.1, 1.0, 0.2)),
+        "T50_syn": lambda: T50Syn(test_scores, measure=measure, MF_dysyn=np.arange(0.1, 1.0, 0.2)),
+        "MS_syn": lambda: MSSyn(test_scores, measure=measure, MF_dysyn=np.arange(0.1, 1.0, 0.2)),
+        "MS2_syn": lambda: MS2Syn(test_scores, measure=measure, MF_dysyn=np.arange(0.1, 1.0, 0.2)),
+        "SMM_syn": lambda: SMMSyn(test_scores, measure=measure, MF_dysyn=np.arange(0.1, 1.0, 0.2)),
         "HDy_syn": lambda: HDySyn(test_scores, MF=np.arange(0.1, 1.0, 0.2))[0],
     }
 
@@ -444,7 +457,7 @@ def test_classifier(batch, classifier, quantifiers, validation_scores=None, qnt_
             if q == "DySyn":
                 qnt_result = DySyn(
                     test_scores,
-                    measure="hellinger",
+                    measure=SYN_MEASURE,
                     write_distribution=False,
                     return_metadata=True,
                 )
@@ -564,27 +577,31 @@ def process_single_batch(batch_index, idx, y_validation, tests, test_df, classif
             score_metadata["selected_n_scores"],
         )
     
-    batch = test_df.iloc[idx]
-    # Also get multiclass quantifiers
-    multiclass_result, multiclass_metadata = test_classifier(
-        batch,
-        classifier,
-        quantifiers['multiclass'],
-        validation_scores,
-        qnt_models,
-        y_validation,
-        batch_index=batch_index,
-        model_id="multiclass",
-    ) # multiclass quantifiers
-    persist_batch_scores(
-        test_scores_dir,
-        batch_index,
-        "multiclass",
-        multiclass_metadata["incoming_test_scores"],
-        multiclass_metadata["selected_p_scores"],
-        multiclass_metadata["selected_n_scores"],
-    )
-    
+    # Also get multiclass quantifiers (skipped entirely when RUN_MULTICLASS is
+    # off -- handle_batch_results then only emits the binary quantifier rows).
+    multiclass_result = {}
+    if RUN_MULTICLASS:
+        batch = test_df.iloc[idx]
+        multiclass_result, multiclass_metadata = test_classifier(
+            batch,
+            classifier,
+            quantifiers['multiclass'],
+            validation_scores,
+            qnt_models,
+            y_validation,
+            batch_index=batch_index,
+            model_id="multiclass",
+        ) # multiclass quantifiers
+        persist_batch_scores(
+            test_scores_dir,
+            batch_index,
+            "multiclass",
+            multiclass_metadata["incoming_test_scores"],
+            multiclass_metadata["selected_p_scores"],
+            multiclass_metadata["selected_n_scores"],
+        )
+
+
     result = handle_batch_results(batch_result, multiclass_result, test_df.iloc[idx], quantifiers['binary'], batch_index, classes)
 
     return result
@@ -800,12 +817,17 @@ def process_single_dataset(dataset_path):
     is_binary_dataset = len(classes) == 2
 
     classifiers = train_one_vs_rest_classifiers(trains, dataset_dir)
-    classifier, _, _, _, validation_scores, _, y_validation = train_classifier(train_df, fit_cdt=RUN_CDT)
 
-    # train_classifier only strips the label column from the validation scores
-    # on the multiclass branch; the multiclass quantifiers need the posteriors
-    # alone, so strip it here for binary datasets too.
-    priors = validation_scores[:, :-1] if is_binary_dataset else validation_scores
+    # The plain (non-OvR) classifier and its cross-validated scores only feed the
+    # multiclass quantifiers, so its 10-fold fit is skipped along with them.
+    classifier, validation_scores, y_validation, priors = None, None, None, None
+    if RUN_MULTICLASS:
+        classifier, _, _, _, validation_scores, _, y_validation = train_classifier(train_df, fit_cdt=RUN_CDT)
+
+        # train_classifier only strips the label column from the validation scores
+        # on the multiclass branch; the multiclass quantifiers need the posteriors
+        # alone, so strip it here for binary datasets too.
+        priors = validation_scores[:, :-1] if is_binary_dataset else validation_scores
 
     quantifiers = {
         "binary": [
@@ -842,7 +864,7 @@ def process_single_dataset(dataset_path):
             "KDEyHD",
             "KDEyCS",
             "KDEyML",
-        ]
+        ] if RUN_MULTICLASS else []
     }
 
     # The CDT-gated variants only exist when the CDT pipeline is on.
@@ -860,7 +882,9 @@ def process_single_dataset(dataset_path):
             "HDy_cdt",
         ]
 
-    qnt_models = train_quantifiers(train_df)
+    # PWK and HDx are only ever called through the multiclass map, so fitting
+    # them (HDx in particular is expensive on wide datasets) is skipped too.
+    qnt_models = train_quantifiers(train_df) if RUN_MULTICLASS else None
     persist_training_distributions(dataset_dir, classifiers, validation_scores)
 
     results = test_one_vs_rest_classifiers(
