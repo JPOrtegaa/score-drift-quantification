@@ -75,7 +75,7 @@ import argparse
 
 # Root folder for all per-dataset output (results CSV, distances.csv,
 # test_scores/, distributions). Each dataset gets its own subfolder underneath.
-RESULTS_ROOT = "ovr_results_corrected_topsoe_binrange"
+RESULTS_ROOT = os.path.join("results", "ovr_results_corrected_topsoe_binrange")
 
 # Toggle persistence of score distributions: training distributions, per-batch
 # test scores, and the DySyn selected distributions (the <RESULTS_ROOT>/<dataset>/
