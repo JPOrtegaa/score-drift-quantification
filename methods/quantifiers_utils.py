@@ -82,6 +82,7 @@ def TernarySearch(left, right, f, eps=1e-4):
         else:
             right = rightThird
 
+# usar scores de treino!
 def MoSS(n, alpha, m):
     p_score = np.random.uniform(size=int(n * alpha)) ** m
     n_score = 1 - (np.random.uniform(size=int(round(n * (1 - alpha), 0))) ** m)
