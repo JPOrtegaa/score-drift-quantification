@@ -57,7 +57,7 @@ def ACC(test, TprFpr, thr=0.5):
 
     return np.array([result, 1 - result], dtype=float)
 
-def DyS(p_score, n_score, test, measure="topsoe", bins=np.arange(2, 22, 2), err=1e-5, return_distance=False):
+def DyS(p_score, n_score, test, measure="topsoe", bins=np.append(np.arange(2, 22, 2), 30), err=1e-5, return_distance=False):
     results = []
     distances = []
 
@@ -115,10 +115,11 @@ def DySyn(ts, measure, MF=np.arange(0.1, 1.0, 0.2), write_distribution=None, dis
             "mf": mf,
         })
 
+        # maybe just add a call for DySyn_DyS with training distributions here.
         if measure == "sord":
             rQnt = DySyn_SORD(test_p, test_n, ts)  # Implement DySyn_SORD separately
         else:
-            rQnt = DySyn_DyS(test_p, test_n, ts, measure, [10])  # Implement DySyn_DyS separately
+            rQnt = DySyn_DyS(test_p, test_n, ts, measure)  # was only [10] for bins, but now we use a range of bins
 
         distances.append(rQnt[1])
         results.append(rQnt[0][0])
@@ -127,6 +128,7 @@ def DySyn(ts, measure, MF=np.arange(0.1, 1.0, 0.2), write_distribution=None, dis
     if write_distribution:
         distribution_file = write_distributions(moss_distributions, distributions_dir=distributions_dir)
 
+    # and then in this verification of min distance also assess the ones from the training distribution.
     best_idx = int(np.argmin(distances))
     best_result = round(results[best_idx], 2)
     response = [np.array([best_result, 1 - best_result]), min(distances), MF[best_idx]]

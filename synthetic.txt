@@ -1,0 +1,4 @@
+python ovr.py -dts datasets/synthetic/global_covariate_shift2.csv > logs/synthetic/global_covariate_shift2.log 2>&1
+python ovr.py -dts datasets/synthetic/horizontal_mix.csv > logs/synthetic/horizontal_mix.log 2>&1
+python ovr.py -dts datasets/synthetic/label_shift_(1,1).csv > logs/synthetic/label_shift_(1,1).log 2>&1
+python ovr.py -dts datasets/synthetic/label_shift_(5,5).csv > logs/synthetic/label_shift_(5,5).log 2>&1
