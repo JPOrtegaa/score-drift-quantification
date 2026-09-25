@@ -68,7 +68,8 @@ from methods.quadapt import (
     SMMSyn,
     HDySyn,
 )
-from methods.quantifiers_utils import getTPRandFPRbyThreshold, CDT
+from methods.quantifiers_utils import getTPRandFPRbyThreshold
+from methods.drift_detectors import BatchContext, CDT, DETECTORS, build_detector
 import math
 import sys
 import argparse
@@ -83,10 +84,27 @@ RESULTS_ROOT = os.path.join("results", "ovr_results_corrected_topsoe_binrange")
 # them; the final <dataset>_results.csv is always written.
 SAVE_DISTRIBUTIONS = False
 
-# Toggle the whole CDT pipeline. When False no CDT is trained or loaded and the
-# CDT-gated quantifiers ({base}_cdt) are dropped from the binary list, so a run
-# only exercises the base and synthetic quantifiers.
-RUN_CDT = False
+# Drift detectors that gate QuaDapt (see methods/drift_detectors). For every
+# name listed, the {base}_{name} quantifiers (base in GATED_BASES) are added to
+# the binary list: on each test batch the detector's flag picks the synthetic
+# version ({base}_syn, or DySyn for DyS) on drift and the base quantifier
+# otherwise. An empty list trains and runs no detector, so a run only exercises
+# the base and synthetic quantifiers.
+#   "cdt"  - Concept Distance Threshold: DyS distance between the training and
+#            test scores, one detector per one-vs-rest model.
+#   "ibdd" - Image-Based Drift Detector: MSD between images of the training and
+#            test-batch features, one detector per dataset shared by every model.
+DRIFT_DETECTORS = []
+
+# Constructor arguments per detector. CDT also gets its own RandomForest in
+# train_classifier; IBDD's window_length defaults to the test batch size.
+DETECTOR_PARAMS = {
+    "cdt": {"measure": "topsoe"},
+    "ibdd": {"image_backend": "jpeg", "n_permutations": 20},
+}
+
+# Base quantifiers that get a detector-gated variant {base}_{detector}.
+GATED_BASES = ["DyS", "ACC", "PACC", "X", "MAX", "T50", "MS", "MS2", "SMM", "HDy"]
 
 # Toggle the CDT threshold source. When True, reuse the pre-computed CDT
 # thresholds from an existing <RESULTS_ROOT>/<dataset>/distances.csv instead of
@@ -94,7 +112,8 @@ RUN_CDT = False
 # When False, train a fresh CDT per binary classifier and persist its DyS
 # distances/thresholds to distances.csv. The distances file carries two-sided
 # thresholds (thr_lower/thr_upper); a legacy file with a single `thr` column is
-# read as the upper bound only (lower = None).
+# read as the upper bound only (lower = None). Only used when "cdt" is in
+# DRIFT_DETECTORS.
 USE_PRECOMPUTED_CDT_DISTANCES = False
 
 # Toggle the multiclass (aggregate) quantifiers. When False the multiclass list
@@ -114,6 +133,9 @@ SYN_MEASURE = "topsoe"
 # column: 50 bags at t = linspace(0, 1, 50). Bags 0..SYNTHETIC_TRAIN_LAST_BAG
 # (inclusive) form the training set, every later bag becomes one test batch.
 SYNTHETIC_TRAIN_LAST_BAG = 10
+
+# Size of the UPP test batches drawn for the non-synthetic datasets.
+UPP_BATCH_SIZE = 100
 
 def serialize_scores(scores):
     if scores is None:
@@ -307,7 +329,7 @@ def train_classifier(train_df, fit_cdt=True):
     # CDT calculation
     cdt = None
     if fit_cdt and len(y_train.unique()) == 2:  # Binary only
-        cdt = CDT(classifier=RandomForestClassifier(n_estimators=200, random_state=42, n_jobs=-1), measure="topsoe")
+        cdt = CDT(classifier=RandomForestClassifier(n_estimators=200, random_state=42, n_jobs=-1), **DETECTOR_PARAMS["cdt"])
         cdt.fit(train_df)
 
     skf = StratifiedKFold(n_splits=10, shuffle=True, random_state=42)
@@ -345,8 +367,37 @@ def train_classifier(train_df, fit_cdt=True):
 
     return clf, tpr_fpr, pos_scores, neg_scores, validation_scores, cdt, y_validation
 
-def train_one_vs_rest_classifiers(trains, dataset_dir=None):
+def fit_dataset_detectors(train_df, batch_size, dataset_dir=None):
+    """Fit the dataset-level drift detectors in DRIFT_DETECTORS (per_class=False,
+    e.g. IBDD) once on the training features; every one-vs-rest model shares
+    them. IBDD compares windows of exactly batch_size examples, so its window
+    defaults to the test batch size; when the training set is smaller than one
+    batch there is no training window to compare against, so IBDD is skipped
+    (with a warning) and its gated quantifiers are left out for this dataset.
+    The calibration distances and thresholds go to <dataset_dir>/distances_<name>.csv."""
+    unknown = [name for name in DRIFT_DETECTORS if name not in DETECTORS]
+    if unknown:
+        raise ValueError(f"Unknown drift detectors {unknown}; available: {sorted(DETECTORS)}")
+
+    detectors = {}
+    for name in DRIFT_DETECTORS:
+        if DETECTORS[name].per_class:
+            continue
+        params = dict(DETECTOR_PARAMS.get(name, {}))
+        if name == "ibdd":
+            params.setdefault("window_length", batch_size)
+            if len(train_df) < params["window_length"]:
+                print(f"WARNING: skipping IBDD, {len(train_df)} training rows < window of {params['window_length']}")
+                continue
+        detector = build_detector(name, **params).fit(train_df.drop(columns=['class']))
+        if dataset_dir is not None:
+            detector.save_distances(os.path.join(dataset_dir, f"distances_{name}.csv"), model_id="all", overwrite=True)
+        detectors[name] = detector
+    return detectors
+
+def train_one_vs_rest_classifiers(trains, dataset_dir=None, dataset_detectors=None):
     classifiers = {}
+    run_cdt = "cdt" in DRIFT_DETECTORS
 
     distances_path = os.path.join(dataset_dir, "distances.csv") if dataset_dir else None
 
@@ -355,7 +406,7 @@ def train_one_vs_rest_classifiers(trains, dataset_dir=None):
     # thresholds (thr_lower/thr_upper); a legacy file with a single `thr` column
     # is read as the upper bound only (lower = None).
     thr_by_model = {}
-    if RUN_CDT and USE_PRECOMPUTED_CDT_DISTANCES and distances_path is not None and os.path.exists(distances_path):
+    if run_cdt and USE_PRECOMPUTED_CDT_DISTANCES and distances_path is not None and os.path.exists(distances_path):
         thr_df = pd.read_csv(distances_path, usecols=lambda c: c != "distances")
         has_two_sided = "thr_upper" in thr_df.columns
         for r in thr_df.itertuples(index=False):
@@ -372,10 +423,14 @@ def train_one_vs_rest_classifiers(trains, dataset_dir=None):
     first_saved = True
     for cls, bin_train_df in trains.items():
         # Only train a fresh CDT when we are not reusing pre-computed thresholds.
-        fit_cdt = RUN_CDT and not USE_PRECOMPUTED_CDT_DISTANCES
+        fit_cdt = run_cdt and not USE_PRECOMPUTED_CDT_DISTANCES
         clf, tpr_fpr, pos_scores, neg_scores, _, cdt, _ = train_classifier(bin_train_df, fit_cdt=fit_cdt)
 
-        if not RUN_CDT:
+        # Detectors that gate this model's quantifiers. CDT is kept as a
+        # thresholds-only instance: the batches run in joblib workers, so the
+        # fitted RandomForest and distances are not shipped with it.
+        detectors = dict(dataset_detectors or {})
+        if not run_cdt:
             cdt_thr = None
         elif USE_PRECOMPUTED_CDT_DISTANCES:
             cdt_thr = thr_by_model.get(str(cls), None)
@@ -390,12 +445,15 @@ def train_one_vs_rest_classifiers(trains, dataset_dir=None):
         else:
             cdt_thr = None
 
+        if cdt_thr is not None:
+            detectors["cdt"] = CDT.from_thresholds(cdt_thr["upper"], cdt_thr["lower"], **DETECTOR_PARAMS["cdt"])
+
         classifiers[cls] = {
             "model": clf,
             "tpr_fpr": tpr_fpr,
             "pos_scores": pos_scores,
             "neg_scores": neg_scores,
-            "cdt_thr": cdt_thr,
+            "detectors": detectors,
         }
 
     return classifiers
@@ -411,7 +469,7 @@ def test_classifier(batch, classifier, quantifiers, validation_scores=None, qnt_
         tpr_fpr = classifier["tpr_fpr"]
         pos_scores = classifier["pos_scores"]
         neg_scores = classifier["neg_scores"]
-        cdt_thr = classifier.get("cdt_thr", None)
+        detectors = classifier.get("detectors", {})
 
         X_test = batch.drop(columns=['class'])
         test_scores = clf.predict_proba(X_test)[:, 1]
@@ -423,30 +481,26 @@ def test_classifier(batch, classifier, quantifiers, validation_scores=None, qnt_
         selected_p_scores = None
         selected_n_scores = None
 
-        # CDT drift detector (binary only): set up once with the trained
-        # thresholds and the DyS distance of this batch (reused for every
-        # synthetic quantifier). cdt_thr carries the two-sided bounds; a missing
-        # lower bound (legacy files) becomes -inf so only the upper bound gates.
-        cdt = None
-        dys_distance = None
-        if cdt_thr is not None:
-            cdt = CDT(classifier=None)
-            cdt.thr_upper = cdt_thr["upper"]
-            cdt.thr_lower = cdt_thr["lower"] if cdt_thr["lower"] is not None else -np.inf
-            _, dys_distance = DyS(pos_scores, neg_scores, test_scores, return_distance=True, measure="topsoe")
+        # Drift detectors (binary only): one flag per detector for this batch,
+        # reused by every gated quantifier. Each detector reads what it needs
+        # from the context (CDT the scores, IBDD the features).
+        drift_flags = {}
+        if detectors:
+            ctx = BatchContext(X=X_test, test_scores=test_scores, pos_scores=pos_scores, neg_scores=neg_scores)
+            drift_flags = {name: detector.detect(ctx) for name, detector in detectors.items()}
 
         for q in quantifiers:
-            # CDT-gated variant ({base}_cdt): drift (distance outside
-            # [thr_lower, thr_upper]) -> synthetic version, otherwise fall back
-            # to the base (non-synthetic) quantifier.
-            if q.endswith("_cdt"):
-                base_q = q[:-4]
+            # Detector-gated variant ({base}_{detector}): drift -> synthetic
+            # version, otherwise fall back to the base (non-synthetic)
+            # quantifier. "_syn" never matches: it is not a detector name.
+            base_q, _, detector_name = q.rpartition("_")
+            if detector_name in DETECTORS:
                 syn_q = "DySyn" if base_q == "DyS" else f"{base_q}_syn"
-                if cdt is None:
-                    raise ValueError(f"CDT threshold unavailable for gated quantifier: {q}")
-                chosen = syn_q if cdt.predict(dys_distance) else base_q
+                if detector_name not in drift_flags:
+                    raise ValueError(f"{detector_name} detector unavailable for gated quantifier: {q}")
+                chosen = syn_q if drift_flags[detector_name] else base_q
                 if chosen not in quantifier_map:
-                    raise ValueError(f"Unknown quantifier for CDT gating: {chosen}")
+                    raise ValueError(f"Unknown quantifier for {detector_name} gating: {chosen}")
                 # Reuse the already-computed prevalence when available, otherwise
                 # compute it on demand so this does not depend on list ordering.
                 results[q] = results[chosen] if chosen in results else quantifier_map[chosen]()[0]
@@ -620,7 +674,7 @@ def test_one_vs_rest_classifiers(y_validation, tests, test_df, classifiers, quan
         Number of CPU cores to use. -1 means all available cores.
     """
     if batch_indices is None:
-        upp = UPP(batch_size=100, n_prevalences=100, repeats=10, random_state=42)
+        upp = UPP(batch_size=UPP_BATCH_SIZE, n_prevalences=100, repeats=10, random_state=42)
 
         X = test_df.drop(columns=['class'])
         y = test_df['class']
@@ -816,13 +870,18 @@ def process_single_dataset(dataset_path):
     # sides of the OvR problem.
     is_binary_dataset = len(classes) == 2
 
-    classifiers = train_one_vs_rest_classifiers(trains, dataset_dir)
+    # Dataset-level drift detectors (IBDD) compare whole test batches, so they
+    # are fitted for the batch size: the synthetic bag size or the UPP size.
+    batch_size = len(batch_indices[0]) if batch_indices is not None else UPP_BATCH_SIZE
+    dataset_detectors = fit_dataset_detectors(train_df, batch_size, dataset_dir)
+
+    classifiers = train_one_vs_rest_classifiers(trains, dataset_dir, dataset_detectors)
 
     # The plain (non-OvR) classifier and its cross-validated scores only feed the
     # multiclass quantifiers, so its 10-fold fit is skipped along with them.
     classifier, validation_scores, y_validation, priors = None, None, None, None
     if RUN_MULTICLASS:
-        classifier, _, _, _, validation_scores, _, y_validation = train_classifier(train_df, fit_cdt=RUN_CDT)
+        classifier, _, _, _, validation_scores, _, y_validation = train_classifier(train_df, fit_cdt=False)
 
         # train_classifier only strips the label column from the validation scores
         # on the multiclass branch; the multiclass quantifiers need the posteriors
@@ -867,20 +926,12 @@ def process_single_dataset(dataset_path):
         ] if RUN_MULTICLASS else []
     }
 
-    # The CDT-gated variants only exist when the CDT pipeline is on.
-    if RUN_CDT:
-        quantifiers["binary"] += [
-            "DyS_cdt",
-            "ACC_cdt",
-            "PACC_cdt",
-            "X_cdt",
-            "MAX_cdt",
-            "T50_cdt",
-            "MS_cdt",
-            "MS2_cdt",
-            "SMM_cdt",
-            "HDy_cdt",
-        ]
+    # The detector-gated variants only exist for the detectors that are on (and,
+    # for the dataset-level ones, that could be fitted on this dataset).
+    for detector_name in DRIFT_DETECTORS:
+        if not DETECTORS[detector_name].per_class and detector_name not in dataset_detectors:
+            continue
+        quantifiers["binary"] += [f"{base}_{detector_name}" for base in GATED_BASES]
 
     # PWK and HDx are only ever called through the multiclass map, so fitting
     # them (HDx in particular is expensive on wide datasets) is skipped too.

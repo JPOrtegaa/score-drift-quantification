@@ -14,3 +14,5 @@ ovr_results_corrected/
 all3.txt
 *.zip
 results/
+# IBDD authors code (downloaded by validation/ibdd/fetch.py, not redistributed)
+validation/ibdd/_external/
