@@ -76,13 +76,27 @@ import argparse
 
 # Root folder for all per-dataset output (results CSV, distances.csv,
 # test_scores/, distributions). Each dataset gets its own subfolder underneath.
-RESULTS_ROOT = os.path.join("results", "ovr_results_corrected_topsoe_binrange")
+RESULTS_ROOT = os.path.join("results", "ovr_results_cdt_ibdd_ours")
 
 # Toggle persistence of score distributions: training distributions, per-batch
-# test scores, and the DySyn selected distributions (the <RESULTS_ROOT>/<dataset>/
-# {test_scores,<class>,multiclass} file structure). Set to False to skip writing
-# them; the final <dataset>_results.csv is always written.
-SAVE_DISTRIBUTIONS = False
+# test scores (with the true label of every score), and the DySyn selected
+# distributions (the <RESULTS_ROOT>/<dataset>/{test_scores,<class>,multiclass}
+# file structure). Set to False to skip writing them; the final
+# <dataset>_results.csv is always written.
+SAVE_DISTRIBUTIONS = True
+
+# Toggle the per-batch drift detector trace: <RESULTS_ROOT>/<dataset>/
+# detector_trace.csv, one row per (batch, detector, model) with the statistic
+# the detector computed, its thresholds and the drift flag. CDT gets one row per
+# one-vs-rest model, IBDD one row per batch (model_id "all").
+SAVE_DETECTOR_TRACE = True
+
+# Toggle persistence of the IBDD images: the training reference image
+# (<dataset>/ibdd/reference.npz) and the image of every test batch as IBDD
+# compared it (<dataset>/ibdd/batch_XXXX.npz, with the batch labels in image
+# column order, the MSD and the drift flag). One compressed features x
+# batch_size array per batch, so this is the heaviest output of a run.
+SAVE_IBDD_IMAGES = True
 
 # Drift detectors that gate QuaDapt (see methods/drift_detectors). For every
 # name listed, the {base}_{name} quantifiers (base in GATED_BASES) are added to
@@ -94,7 +108,7 @@ SAVE_DISTRIBUTIONS = False
 #            test scores, one detector per one-vs-rest model.
 #   "ibdd" - Image-Based Drift Detector: MSD between images of the training and
 #            test-batch features, one detector per dataset shared by every model.
-DRIFT_DETECTORS = []
+DRIFT_DETECTORS = ["cdt", "ibdd"]
 
 # Constructor arguments per detector. CDT also gets its own RandomForest in
 # train_classifier; IBDD's window_length defaults to the test batch size.
@@ -121,7 +135,12 @@ USE_PRECOMPUTED_CDT_DISTANCES = False
 # multiclass classifier with its own 10-fold cross-validation, no per-batch
 # multiclass prediction. Only the binary and synthetic quantifiers are evaluated,
 # and the results CSV simply has no GAC/GPAC/EMQ/KDEy*/FM/HDx/PWK/CC2 rows.
-RUN_MULTICLASS = False
+RUN_MULTICLASS = True
+
+# Multiclass quantifiers evaluated when RUN_MULTICLASS is True. PWK and HDx are
+# only fitted when listed here. Full list: CC2, PWK, HDx, GAC, GPAC, FM, EMQ,
+# KDEyHD, KDEyCS, KDEyML.
+MULTICLASS_QUANTIFIERS = ["CC2"]
 
 # Distance measure used by every synthetic (MoSS-based) quantifier: DySyn and
 # the {base}_syn family. Keep it in one place so the standalone DySyn call in
@@ -175,7 +194,10 @@ def persist_training_distributions(dataset_dir, classifiers, validation_scores):
     }
     pd.DataFrame([multiclass_row]).to_csv(os.path.join(multiclass_dir, "training_distributions.csv"), index=False)
 
-def persist_batch_scores(test_scores_dir, batch_index, model_id, incoming_test_scores, selected_p_scores=None, selected_n_scores=None):
+# incoming_test_labels holds the true label of every incoming test score, in the
+# same order: the 0/1 one-vs-rest label for a binary model, the original class
+# for the multiclass one.
+def persist_batch_scores(test_scores_dir, batch_index, model_id, incoming_test_scores, selected_p_scores=None, selected_n_scores=None, incoming_test_labels=None):
     if not SAVE_DISTRIBUTIONS:
         return
     file_name = f"batch_{batch_index:04d}_{sanitize_model_name(model_id)}.csv"
@@ -184,10 +206,48 @@ def persist_batch_scores(test_scores_dir, batch_index, model_id, incoming_test_s
         "batch_index": batch_index,
         "model_id": model_id,
         "incoming_test_scores": serialize_scores(incoming_test_scores),
+        "incoming_test_labels": serialize_scores(incoming_test_labels),
         "selected_p_scores": serialize_scores(selected_p_scores),
         "selected_n_scores": serialize_scores(selected_n_scores),
     }
     pd.DataFrame([row]).to_csv(file_path, index=False)
+
+# Run each detector on one batch and keep what it computed: the drift flags
+# (what the gated quantifiers read) and one trace row per detector with the
+# statistic, the thresholds it was compared against and the flag. Same decision
+# as detector.detect(ctx), which would only return the flag.
+def evaluate_detectors(detectors, ctx, model_id):
+    flags, trace_rows = {}, []
+    for name, detector in detectors.items():
+        statistic = detector.statistic(ctx)
+        flags[name] = detector.predict(statistic)
+        trace_rows.append({
+            "detector": name,
+            "model_id": model_id,
+            "statistic": statistic,
+            "thr_lower": detector.thr_lower,
+            "thr_upper": detector.thr_upper,
+            "drift": flags[name],
+        })
+    return flags, trace_rows
+
+# Save the image IBDD compared for this batch next to the reference image
+# (<dataset_dir>/ibdd/). labels are the batch's true classes in batch row order;
+# they are stored in image column order, so column j of the image is an example
+# of class labels[j].
+def persist_ibdd_batch_image(dataset_dir, batch_index, detector, ctx, labels, statistic, drift):
+    if not SAVE_IBDD_IMAGES or dataset_dir is None:
+        return
+    ibdd_dir = os.path.join(dataset_dir, "ibdd")
+    os.makedirs(ibdd_dir, exist_ok=True)
+    image, order = detector.batch_image(ctx)
+    np.savez_compressed(
+        os.path.join(ibdd_dir, f"batch_{batch_index:04d}.npz"),
+        image=image,
+        labels=np.asarray(labels)[order],
+        msd=statistic,
+        drift=drift,
+    )
 
 def get_quantifier_map(test_scores, tpr_fpr, pos_scores, neg_scores):
     """Returns a dictionary mapping quantifier names to their callable functions."""
@@ -229,8 +289,6 @@ def get_multiclass_quantifier_map(y_train, X_test, priors, posteriors, qnt_model
     kde_cs = KDEyCS()
     kde_ml = KDEyML()
     fm = FM()
-    hdx = qnt_models["HDx"]
-    pwk = qnt_models["PWK"]
 
     # Get hard predictions for GAC and map to actual class labels
     train_pred_indices = np.argmax(priors, axis=1)
@@ -248,8 +306,8 @@ def get_multiclass_quantifier_map(y_train, X_test, priors, posteriors, qnt_model
         "KDEyCS": lambda: kde_cs.aggregate(train_predictions=priors, predictions=posteriors, y_train=y_train),
         "KDEyML": lambda: kde_ml.aggregate(train_predictions=priors, predictions=posteriors, y_train=y_train),
         "FM": lambda: fm.aggregate(train_predictions=priors, predictions=posteriors, y_train=y_train),
-        "HDx": lambda: hdx.predict(X=X_test),
-        "PWK": lambda: pwk.predict(X=X_test),
+        "HDx": lambda: qnt_models["HDx"].predict(X=X_test),
+        "PWK": lambda: qnt_models["PWK"].predict(X=X_test),
         "CC2": lambda: CC2(posteriors),
     }
 
@@ -307,18 +365,18 @@ def binarize_dataset(train_df):
     return trains
 
 def train_quantifiers(train_df):
-
-    pwk = PWK(n_neighbors=11, n_jobs=-1)
-    hdx = HDx(bins_size=np.linspace(10, 110, 11))
+    # Only the models whose quantifier is in MULTICLASS_QUANTIFIERS are fitted.
+    builders = {
+        "PWK": lambda: PWK(n_neighbors=11, n_jobs=-1),
+        "HDx": lambda: HDx(bins_size=np.linspace(10, 110, 11)),
+    }
 
     X_train, y_train = train_df.drop(columns=['class']), train_df['class']
-    pwk.fit(X_train, y_train)
-    hdx.fit(X_train, y_train)
-
-    models = {
-        "PWK": pwk,
-        "HDx": hdx,
-    }
+    models = {}
+    for name, build in builders.items():
+        if name in MULTICLASS_QUANTIFIERS:
+            models[name] = build()
+            models[name].fit(X_train, y_train)
 
     return models
 
@@ -392,10 +450,12 @@ def fit_dataset_detectors(train_df, batch_size, dataset_dir=None):
         detector = build_detector(name, **params).fit(train_df.drop(columns=['class']))
         if dataset_dir is not None:
             detector.save_distances(os.path.join(dataset_dir, f"distances_{name}.csv"), model_id="all", overwrite=True)
+            if name == "ibdd" and SAVE_IBDD_IMAGES:
+                detector.save_reference(os.path.join(dataset_dir, "ibdd", "reference.npz"))
         detectors[name] = detector
     return detectors
 
-def train_one_vs_rest_classifiers(trains, dataset_dir=None, dataset_detectors=None):
+def train_one_vs_rest_classifiers(trains, dataset_dir=None):
     classifiers = {}
     run_cdt = "cdt" in DRIFT_DETECTORS
 
@@ -426,10 +486,12 @@ def train_one_vs_rest_classifiers(trains, dataset_dir=None, dataset_detectors=No
         fit_cdt = run_cdt and not USE_PRECOMPUTED_CDT_DISTANCES
         clf, tpr_fpr, pos_scores, neg_scores, _, cdt, _ = train_classifier(bin_train_df, fit_cdt=fit_cdt)
 
-        # Detectors that gate this model's quantifiers. CDT is kept as a
-        # thresholds-only instance: the batches run in joblib workers, so the
-        # fitted RandomForest and distances are not shipped with it.
-        detectors = dict(dataset_detectors or {})
+        # Per-class detectors that gate this model's quantifiers (the
+        # dataset-level ones are evaluated once per batch in
+        # process_single_batch). CDT is kept as a thresholds-only instance: the
+        # batches run in joblib workers, so the fitted RandomForest and
+        # distances are not shipped with it.
+        detectors = {}
         if not run_cdt:
             cdt_thr = None
         elif USE_PRECOMPUTED_CDT_DISTANCES:
@@ -458,7 +520,7 @@ def train_one_vs_rest_classifiers(trains, dataset_dir=None, dataset_detectors=No
 
     return classifiers
 
-def test_classifier(batch, classifier, quantifiers, validation_scores=None, qnt_models=None, y_validation=None, batch_index=None, model_id=None):
+def test_classifier(batch, classifier, quantifiers, validation_scores=None, qnt_models=None, y_validation=None, batch_index=None, model_id=None, dataset_flags=None):
     # The binary quantifiers return [positive_prevalence, 1 - positive]; index 0
     # (the positive prevalence) is always stored, so the value is the prevalence
     # of the class the classifier treats as positive -- the same class whose true
@@ -482,12 +544,15 @@ def test_classifier(batch, classifier, quantifiers, validation_scores=None, qnt_
         selected_n_scores = None
 
         # Drift detectors (binary only): one flag per detector for this batch,
-        # reused by every gated quantifier. Each detector reads what it needs
-        # from the context (CDT the scores, IBDD the features).
-        drift_flags = {}
+        # reused by every gated quantifier. The dataset-level flags (IBDD) come
+        # in already computed, once per batch for all classes; the per-class
+        # detectors (CDT) read this model's scores from the context.
+        drift_flags = dict(dataset_flags or {})
+        detector_trace = []
         if detectors:
             ctx = BatchContext(X=X_test, test_scores=test_scores, pos_scores=pos_scores, neg_scores=neg_scores)
-            drift_flags = {name: detector.detect(ctx) for name, detector in detectors.items()}
+            model_flags, detector_trace = evaluate_detectors(detectors, ctx, model_id)
+            drift_flags.update(model_flags)
 
         for q in quantifiers:
             # Detector-gated variant ({base}_{detector}): drift -> synthetic
@@ -525,8 +590,10 @@ def test_classifier(batch, classifier, quantifiers, validation_scores=None, qnt_
             "batch_index": batch_index,
             "model_id": model_id,
             "incoming_test_scores": test_scores,
+            "incoming_test_labels": batch['class'].to_numpy(),
             "selected_p_scores": selected_p_scores,
             "selected_n_scores": selected_n_scores,
+            "detector_trace": detector_trace,
         }
 
     else: # Multiclass
@@ -548,8 +615,10 @@ def test_classifier(batch, classifier, quantifiers, validation_scores=None, qnt_
             "batch_index": batch_index,
             "model_id": model_id,
             "incoming_test_scores": test_scores,
+            "incoming_test_labels": batch['class'].to_numpy(),
             "selected_p_scores": None,
             "selected_n_scores": None,
+            "detector_trace": [],
         }
 
     return results, metadata
@@ -608,8 +677,24 @@ def handle_batch_results(batch_result, multiclass_result, batch_df, quantifiers,
     
     return quantifier_results
 
-def process_single_batch(batch_index, idx, y_validation, tests, test_df, classifiers, quantifiers, classifier, validation_scores, qnt_models, test_scores_dir, classes):
-    """Process a single batch - designed for parallel execution."""
+def process_single_batch(batch_index, idx, y_validation, tests, test_df, classifiers, quantifiers, classifier, validation_scores, qnt_models, test_scores_dir, classes, dataset_detectors=None, dataset_dir=None):
+    """Process a single batch - designed for parallel execution.
+
+    Returns the per-quantifier results of the batch and the detector trace rows
+    (one per detector and model, see evaluate_detectors) tagged with batch_index.
+    """
+    # Dataset-level drift detectors (IBDD) only see the batch features, which
+    # every one-vs-rest model shares, so each flag is computed once here.
+    dataset_flags, trace_rows = {}, []
+    if dataset_detectors:
+        batch_df = test_df.iloc[idx]
+        ctx = BatchContext(X=batch_df.drop(columns=['class']))
+        dataset_flags, trace_rows = evaluate_detectors(dataset_detectors, ctx, "all")
+        if "ibdd" in dataset_detectors:
+            ibdd_row = next(row for row in trace_rows if row["detector"] == "ibdd")
+            persist_ibdd_batch_image(dataset_dir, batch_index, dataset_detectors["ibdd"], ctx,
+                                     batch_df['class'].to_numpy(), ibdd_row["statistic"], ibdd_row["drift"])
+
     batch_result = {}
     for cls in tests:
         binary_test = tests[cls]
@@ -621,7 +706,9 @@ def process_single_batch(batch_index, idx, y_validation, tests, test_df, classif
             quantifiers['binary'],
             batch_index=batch_index,
             model_id=cls,
+            dataset_flags=dataset_flags,
         ) # put binary quantifiers only.
+        trace_rows.extend(score_metadata["detector_trace"])
         persist_batch_scores(
             test_scores_dir,
             batch_index,
@@ -629,6 +716,7 @@ def process_single_batch(batch_index, idx, y_validation, tests, test_df, classif
             score_metadata["incoming_test_scores"],
             score_metadata["selected_p_scores"],
             score_metadata["selected_n_scores"],
+            incoming_test_labels=score_metadata["incoming_test_labels"],
         )
     
     # Also get multiclass quantifiers (skipped entirely when RUN_MULTICLASS is
@@ -653,15 +741,17 @@ def process_single_batch(batch_index, idx, y_validation, tests, test_df, classif
             multiclass_metadata["incoming_test_scores"],
             multiclass_metadata["selected_p_scores"],
             multiclass_metadata["selected_n_scores"],
+            incoming_test_labels=multiclass_metadata["incoming_test_labels"],
         )
 
 
     result = handle_batch_results(batch_result, multiclass_result, test_df.iloc[idx], quantifiers['binary'], batch_index, classes)
+    trace_rows = [{"batch_index": batch_index, **row} for row in trace_rows]
 
-    return result
+    return result, trace_rows
 
 
-def test_one_vs_rest_classifiers(y_validation, tests, test_df, classifiers, quantifiers, classifier, validation_scores, qnt_models, test_scores_dir, classes, batch_indices=None, n_jobs=-1):
+def test_one_vs_rest_classifiers(y_validation, tests, test_df, classifiers, quantifiers, classifier, validation_scores, qnt_models, test_scores_dir, classes, batch_indices=None, n_jobs=-1, dataset_detectors=None, dataset_dir=None):
     """
     Test classifiers using parallel processing.
 
@@ -672,6 +762,13 @@ def test_one_vs_rest_classifiers(y_validation, tests, test_df, classifiers, quan
         The synthetic datasets pass their own temporal bags here instead.
     n_jobs : int, default=-1
         Number of CPU cores to use. -1 means all available cores.
+    dataset_detectors : dict, default=None
+        Fitted dataset-level drift detectors (per_class=False, e.g. IBDD), each
+        evaluated once per batch and shared by every one-vs-rest model.
+    dataset_dir : str, default=None
+        Dataset output folder; the IBDD batch images go to <dataset_dir>/ibdd/.
+
+    Returns one (results, detector trace rows) pair per batch, in batch order.
     """
     if batch_indices is None:
         upp = UPP(batch_size=UPP_BATCH_SIZE, n_prevalences=100, repeats=10, random_state=42)
@@ -686,7 +783,7 @@ def test_one_vs_rest_classifiers(y_validation, tests, test_df, classifiers, quan
 
     # Process batches in parallel
     all_results = Parallel(n_jobs=n_jobs, backend='loky')(
-        delayed(process_single_batch)(batch_index, idx, y_validation, tests, test_df, classifiers, quantifiers, classifier, validation_scores, qnt_models, test_scores_dir, classes)
+        delayed(process_single_batch)(batch_index, idx, y_validation, tests, test_df, classifiers, quantifiers, classifier, validation_scores, qnt_models, test_scores_dir, classes, dataset_detectors, dataset_dir)
         for batch_index, idx in enumerate(tqdm(batch_indices, total=total_batches, desc="Processing batches", unit="batch"))
     )
 
@@ -875,7 +972,7 @@ def process_single_dataset(dataset_path):
     batch_size = len(batch_indices[0]) if batch_indices is not None else UPP_BATCH_SIZE
     dataset_detectors = fit_dataset_detectors(train_df, batch_size, dataset_dir)
 
-    classifiers = train_one_vs_rest_classifiers(trains, dataset_dir, dataset_detectors)
+    classifiers = train_one_vs_rest_classifiers(trains, dataset_dir)
 
     # The plain (non-OvR) classifier and its cross-validated scores only feed the
     # multiclass quantifiers, so its 10-fold fit is skipped along with them.
@@ -912,18 +1009,7 @@ def process_single_dataset(dataset_path):
             "SMM_syn",
             "HDy_syn",
         ],
-        "multiclass": [
-            "CC2",
-            "PWK",
-            "HDx",
-            "GAC",
-            "GPAC",
-            "FM",
-            "EMQ",
-            "KDEyHD",
-            "KDEyCS",
-            "KDEyML",
-        ] if RUN_MULTICLASS else []
+        "multiclass": list(MULTICLASS_QUANTIFIERS) if RUN_MULTICLASS else []
     }
 
     # The detector-gated variants only exist for the detectors that are on (and,
@@ -950,12 +1036,14 @@ def process_single_dataset(dataset_path):
         test_scores_dir,
         classes,
         batch_indices=batch_indices,
-        n_jobs=1,
+        n_jobs=12,
+        dataset_detectors=dataset_detectors,
+        dataset_dir=dataset_dir,
     )
 
     # Flatten results into rows for CSV
     rows = []
-    for batch_result in results:
+    for batch_result, _ in results:
         for quantifier, data in batch_result.items():
             row = {
                 'qnt': quantifier,
@@ -991,6 +1079,18 @@ def process_single_dataset(dataset_path):
     output_path = os.path.join(dataset_dir, f'{dataset_name}_results.csv')
     results_df.to_csv(output_path, index=False)
     print(f"Results saved to: {output_path}")
+
+    # Per-batch drift detector trace: what every detector measured on every
+    # batch and whether it flagged drift (the decision behind the gated
+    # quantifiers).
+    trace_rows = [row for _, batch_trace in results for row in batch_trace]
+    if SAVE_DETECTOR_TRACE and trace_rows:
+        trace_df = pd.DataFrame(trace_rows)
+        if test_bags is not None:
+            trace_df.insert(1, 't', [test_bags[i] for i in trace_df['batch_index']])
+        trace_path = os.path.join(dataset_dir, "detector_trace.csv")
+        trace_df.to_csv(trace_path, index=False)
+        print(f"Detector trace saved to: {trace_path}")
 
 
 if __name__ == "__main__":

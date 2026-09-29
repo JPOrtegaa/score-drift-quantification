@@ -1,0 +1,13 @@
+python ovr.py -dts datasets/ours/Avila.csv > logs/cdt_ibdd_ours/Avila.log 2>&1
+python ovr.py -dts datasets/ours/Chessgame.csv > logs/cdt_ibdd_ours/Chessgame.log 2>&1
+python ovr.py -dts datasets/ours/Covertype.csv > logs/cdt_ibdd_ours/Covertype.log 2>&1
+python ovr.py -dts datasets/ours/Dermatology.csv > logs/cdt_ibdd_ours/Dermatology.log 2>&1
+python ovr.py -dts datasets/ours/HAR.csv > logs/cdt_ibdd_ours/HAR.log 2>&1
+python ovr.py -dts datasets/ours/Land-use.csv > logs/cdt_ibdd_ours/Land-use.log 2>&1
+python ovr.py -dts datasets/ours/Mfeat.csv > logs/cdt_ibdd_ours/Mfeat.log 2>&1
+python ovr.py -dts datasets/ours/Mfeat_icdm21.csv > logs/cdt_ibdd_ours/Mfeat_icdm21.log 2>&1
+python ovr.py -dts datasets/ours/Mosquitoes.csv > logs/cdt_ibdd_ours/Mosquitoes.log 2>&1
+python ovr.py -dts datasets/ours/Nursery.csv > logs/cdt_ibdd_ours/Nursery.log 2>&1
+python ovr.py -dts datasets/ours/PhishingURL.csv > logs/cdt_ibdd_ours/PhishingURL.log 2>&1
+python ovr.py -dts datasets/ours/Satimage.csv > logs/cdt_ibdd_ours/Satimage.log 2>&1
+python ovr.py -dts datasets/ours/Walking.csv > logs/cdt_ibdd_ours/Walking.log 2>&1

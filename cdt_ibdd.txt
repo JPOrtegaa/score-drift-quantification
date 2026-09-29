@@ -1,0 +1,6 @@
+python ovr.py -dts datasets/synthetic/global_covariate_shift2.csv > logs/cdt_ibdd/global_covariate_shift2.log 2>&1
+python ovr.py -dts datasets/synthetic/horizontal_mix.csv > logs/cdt_ibdd/horizontal_mix.log 2>&1
+python ovr.py -dts datasets/synthetic/label_shift_1,1.csv > logs/cdt_ibdd/label_shift_1,1.log 2>&1
+python ovr.py -dts datasets/synthetic/label_shift_5,5.csv > logs/cdt_ibdd/label_shift_5,5.log 2>&1
+python ovr.py -dts datasets/ours/Avila.csv > logs/cdt_ibdd/Avila.log 2>&1
+python ovr.py -dts datasets/ours/Dermatology.csv > logs/cdt_ibdd/Dermatology.log 2>&1

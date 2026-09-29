@@ -23,9 +23,10 @@ def make_binary_df(n=600, d=4, seed=SEED):
 
 
 def fit_cdt(cdt_cls):
-    """Fit a CDT deterministically. _test_batch samples with the global numpy
-    RNG (DataFrame.sample without random_state), so seed it right before fit."""
-    cdt = cdt_cls(classifier=LogisticRegression(max_iter=1000, random_state=0), **CDT_PARAMS)
+    """Fit a CDT deterministically. The golden values were drawn with the global
+    numpy RNG (DataFrame.sample without random_state), so ask CDT for that
+    legacy sampling (random_state=None) and seed the global RNG right before fit."""
+    cdt = cdt_cls(classifier=LogisticRegression(max_iter=1000, random_state=0), random_state=None, **CDT_PARAMS)
     np.random.seed(SEED)
     cdt.fit(make_binary_df())
     return cdt

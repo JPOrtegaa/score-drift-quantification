@@ -80,3 +80,42 @@ def test_save_distances_schema(tmp_path):
 
     with pytest.raises(ValueError):
         CDT().save_distances(str(path))
+
+
+def test_experiment_trace_keeps_the_detect_decision():
+    # ovr.evaluate_detectors splits detect() into statistic + predict so the
+    # statistic can be traced; the flag must stay the one detect() returns.
+    import ovr
+    rng = np.random.default_rng(0)
+    ibdd = IBDD(window_length=50).fit(rng.normal(size=(300, 8)))
+    cdt = CDT.from_thresholds(0.02, 0.001)
+    for shift in (0.0, 3.0):
+        ctx = BatchContext(X=pd.DataFrame(rng.normal(loc=shift, size=(50, 8))),
+                           test_scores=rng.beta(3, 3, 50), pos_scores=rng.beta(5, 2, 200), neg_scores=rng.beta(2, 5, 200))
+        detectors = {"ibdd": ibdd, "cdt": cdt}
+        flags, rows = ovr.evaluate_detectors(detectors, ctx, model_id="m")
+        assert flags == {name: d.detect(ctx) for name, d in detectors.items()}
+        assert [(r["detector"], r["model_id"]) for r in rows] == [("ibdd", "m"), ("cdt", "m")]
+        for row in rows:
+            detector = detectors[row["detector"]]
+            assert row["statistic"] == detector.statistic(ctx)
+            assert (row["thr_lower"], row["thr_upper"], row["drift"]) == (detector.thr_lower, detector.thr_upper, flags[row["detector"]])
+
+
+def test_cdt_fit_is_reproducible():
+    # The calibration bags come from one seeded generator per fit: the same
+    # random_state gives the same distances, a different one other bags.
+    from sklearn.linear_model import LogisticRegression
+    from cdt_fixture import CDT_PARAMS, make_binary_df
+
+    def fit(random_state):
+        cdt = CDT(classifier=LogisticRegression(max_iter=1000, random_state=0), random_state=random_state, **CDT_PARAMS)
+        return cdt.fit(make_binary_df())
+
+    first, second = fit(42), fit(42)
+    assert first.distances.tolist() == second.distances.tolist()
+    assert (first.thr_lower, first.thr_upper) == (second.thr_lower, second.thr_upper)
+    assert fit(0).distances.tolist() != first.distances.tolist()
+    # Bags within one fit are still distinct draws (not one bag reused).
+    per_prev = first.distances.reshape(CDT_PARAMS["repetitions"], -1)
+    assert not np.array_equal(per_prev[0], per_prev[1])

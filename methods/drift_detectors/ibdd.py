@@ -1,3 +1,4 @@
+import os
 import random
 
 import numpy as np
@@ -97,8 +98,10 @@ class IBDD(DriftDetector):
         self.distances = np.array(distances)
         return self
 
-    # MSD between the training reference and one test batch (batch mode).
-    def statistic(self, ctx):
+    # Image of one test batch exactly as statistic() compares it, plus the row
+    # order used to draw it (the fixed-seed shuffle, or the identity), so a
+    # caller can line the image columns up with the batch rows (e.g. labels).
+    def batch_image(self, ctx):
         if self.reference_image is None:
             raise ValueError("IBDD is not fitted; call fit() first.")
         X = _features(ctx)
@@ -107,9 +110,31 @@ class IBDD(DriftDetector):
                 f"IBDD compares windows of {self.window_length} examples, got a batch of {X.shape[0]}; "
                 "fit it with window_length equal to the batch size."
             )
+        order = np.arange(X.shape[0])
         if self.shuffle_batch:
-            X = X[np.random.default_rng(self.random_state).permutation(X.shape[0])]
-        return msd(self.reference_image, self._image(X))
+            order = np.random.default_rng(self.random_state).permutation(X.shape[0])
+        return self._image(X[order]), order
+
+    # MSD between the training reference and one test batch (batch mode).
+    def statistic(self, ctx):
+        image, _ = self.batch_image(ctx)
+        return msd(self.reference_image, image)
+
+    # Persist the reference image with the calibration it was fitted with, so
+    # the batch images saved during an experiment can be compared against it.
+    def save_reference(self, path):
+        if self.reference_image is None:
+            raise ValueError("IBDD is not fitted; call fit() before save_reference().")
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        np.savez_compressed(
+            path,
+            reference_image=self.reference_image,
+            distances=np.asarray(self.distances),
+            thr_lower=self.thr_lower,
+            thr_upper=self.thr_upper,
+            window_length=self.window_length,
+            image_backend=self.image_backend,
+        )
 
     # ---- Stream mode (the original algorithm) ----
 

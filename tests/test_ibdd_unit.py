@@ -182,6 +182,35 @@ def test_batch_mode_requires_fit(rng):
         IBDD(window_length=10).statistic(curves(rng, 10))
 
 
+# ---- persisted images ----
+
+@pytest.mark.parametrize("shuffle", [True, False])
+def test_batch_image_is_the_image_statistic_compares(rng, shuffle):
+    detector = IBDD(window_length=100, shuffle_batch=shuffle).fit(curves(rng, 500))
+    batch = curves(rng, 100)
+    image, order = detector.batch_image(batch)
+    assert msd(detector.reference_image, image) == detector.statistic(batch)
+    assert sorted(order) == list(range(100))
+    assert np.array_equal(image, window_to_image(batch[order]))
+    if not shuffle:
+        assert order.tolist() == list(range(100))
+
+
+def test_save_reference_round_trip(rng, tmp_path):
+    detector = IBDD(window_length=100).fit(curves(rng, 500))
+    path = tmp_path / "ibdd" / "reference.npz"
+    detector.save_reference(str(path))
+    with np.load(path) as saved:
+        assert np.array_equal(saved["reference_image"], detector.reference_image)
+        assert saved["distances"].tolist() == detector.distances.tolist()
+        assert float(saved["thr_lower"]) == detector.thr_lower
+        assert float(saved["thr_upper"]) == detector.thr_upper
+        assert int(saved["window_length"]) == 100
+        assert str(saved["image_backend"]) == "jpeg"
+    with pytest.raises(ValueError):
+        IBDD(window_length=10).save_reference(str(tmp_path / "unfitted.npz"))
+
+
 # ---- stream mode ----
 
 def test_stream_mode_detects_an_abrupt_drift_quickly(rng):

@@ -11,13 +11,18 @@ class CDT(DriftDetector):
     name = "cdt"
     per_class = True
 
-    def __init__(self, classifier=None, sizes=1000, repetitions=10, pos_prev = np.linspace(0, 1, 100), measure="topsoe"):
+    # random_state seeds the calibration bags drawn in fit(): one generator per
+    # fit, so fit() is reproducible while every bag is still a different draw.
+    # None falls back to numpy's global RNG (the behavior before the seed existed).
+    def __init__(self, classifier=None, sizes=1000, repetitions=10, pos_prev = np.linspace(0, 1, 100), measure="topsoe",
+                 random_state=42):
         self.classifier = classifier
         # Allow a single batch size (scalar) or multiple sizes (iterable)
         self.sizes = [sizes] if np.isscalar(sizes) else sizes
         self.repetitions = repetitions
         self.pos_prev = pos_prev
         self.measure = measure
+        self.random_state = random_state
         self.distances = None
         self.thr_upper, self.thr_lower = None, None
 
@@ -52,11 +57,14 @@ class CDT(DriftDetector):
         )
         return train_data, validation_data
 
-    def _test_batch(self, validation, n_pos, size):
+    def _test_batch(self, validation, n_pos, size, rng=None):
         val_pos = validation[validation['class'] == 1]
         val_neg = validation[validation['class'] == 0]
 
-        batch = pd.concat([val_pos.sample(n=min(n_pos, len(val_pos))), val_neg.sample(n=min(size - n_pos, len(val_neg)))])
+        batch = pd.concat([
+            val_pos.sample(n=min(n_pos, len(val_pos)), random_state=rng),
+            val_neg.sample(n=min(size - n_pos, len(val_neg)), random_state=rng),
+        ])
         test_scores = self.classifier.predict_proba(batch.drop(columns=['class']))[:, 1]
 
         return test_scores
@@ -68,6 +76,7 @@ class CDT(DriftDetector):
         # Split train into training and validation sets
         train, validation = self._split_train(train)
         pos_scores, neg_scores = self._train_classifier(train)
+        rng = None if self.random_state is None else np.random.default_rng(self.random_state)
 
         # APP sampling and distance extraction
         for _ in range(self.repetitions):
@@ -75,7 +84,7 @@ class CDT(DriftDetector):
                 for prev in self.pos_prev:
                     n_pos = int(round(size * prev))
 
-                    test_scores = self._test_batch(validation, n_pos, size)
+                    test_scores = self._test_batch(validation, n_pos, size, rng)
 
                     _, distance = DyS(pos_scores, neg_scores, test_scores, return_distance=True, measure=self.measure)
                     distances.append(distance)
