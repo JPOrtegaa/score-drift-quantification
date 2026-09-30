@@ -153,8 +153,11 @@ SYN_MEASURE = "topsoe"
 # (inclusive) form the training set, every later bag becomes one test batch.
 SYNTHETIC_TRAIN_LAST_BAG = 10
 
-# Size of the UPP test batches drawn for the non-synthetic datasets.
-UPP_BATCH_SIZE = 100
+# Size of the UPP test batches drawn for the non-synthetic datasets. Override
+# with -bs/--batch-size; any size other than DEFAULT_UPP_BATCH_SIZE writes to
+# <RESULTS_ROOT>_bs<size> so batch-size sweeps don't overwrite each other.
+DEFAULT_UPP_BATCH_SIZE = 100
+UPP_BATCH_SIZE = DEFAULT_UPP_BATCH_SIZE
 
 def serialize_scores(scores):
     if scores is None:
@@ -1097,9 +1100,14 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='One-vs-Rest Quantification')
     parser.add_argument('-dts', '--dataset', required=False, help='Path to the dataset CSV file')
     parser.add_argument('-exp', '--experiments', required=False, help='Path to the experiments TXT file')
+    parser.add_argument('-bs', '--batch-size', type=int, default=DEFAULT_UPP_BATCH_SIZE, help='UPP test batch size')
 
     args = parser.parse_args()
-    
+
+    UPP_BATCH_SIZE = args.batch_size
+    if UPP_BATCH_SIZE != DEFAULT_UPP_BATCH_SIZE:
+        RESULTS_ROOT = f"{RESULTS_ROOT}_bs{UPP_BATCH_SIZE}"
+
     # Check that at least one argument is provided
     if not args.dataset and not args.experiments:
         parser.error("At least one of -dts/--dataset or -exp/--experiments is required")
