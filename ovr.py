@@ -244,7 +244,7 @@ def persist_ibdd_batch_image(dataset_dir, batch_index, detector, ctx, labels, st
     np.savez_compressed(
         os.path.join(ibdd_dir, f"batch_{batch_index:04d}.npz"),
         image=image,
-        labels=np.asarray(labels)[order],
+        labels=np.asarray(labels).astype(str)[order],  # str, not object: loads without pickle
         msd=statistic,
         drift=drift,
     )
