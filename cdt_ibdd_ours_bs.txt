@@ -1,37 +1,37 @@
-python ovr.py -dts datasets/ours/Avila.csv -bs 250 > logs/cdt_ibdd_ours_bs250/Avila.log 2>&1
-python ovr.py -dts datasets/ours/Chessgame.csv -bs 250 > logs/cdt_ibdd_ours_bs250/Chessgame.log 2>&1
-python ovr.py -dts datasets/ours/Covertype.csv -bs 250 > logs/cdt_ibdd_ours_bs250/Covertype.log 2>&1
-python ovr.py -dts datasets/ours/Dermatology.csv -bs 250 > logs/cdt_ibdd_ours_bs250/Dermatology.log 2>&1
-python ovr.py -dts datasets/ours/HAR.csv -bs 250 > logs/cdt_ibdd_ours_bs250/HAR.log 2>&1
-python ovr.py -dts datasets/ours/Land-use.csv -bs 250 > logs/cdt_ibdd_ours_bs250/Land-use.log 2>&1
-python ovr.py -dts datasets/ours/Mfeat.csv -bs 250 > logs/cdt_ibdd_ours_bs250/Mfeat.log 2>&1
-python ovr.py -dts datasets/ours/Mfeat_icdm21.csv -bs 250 > logs/cdt_ibdd_ours_bs250/Mfeat_icdm21.log 2>&1
-python ovr.py -dts datasets/ours/Mosquitoes.csv -bs 250 > logs/cdt_ibdd_ours_bs250/Mosquitoes.log 2>&1
-python ovr.py -dts datasets/ours/Nursery.csv -bs 250 > logs/cdt_ibdd_ours_bs250/Nursery.log 2>&1
-python ovr.py -dts datasets/ours/PhishingURL.csv -bs 250 > logs/cdt_ibdd_ours_bs250/PhishingURL.log 2>&1
-python ovr.py -dts datasets/ours/Satimage.csv -bs 250 > logs/cdt_ibdd_ours_bs250/Satimage.log 2>&1
-python ovr.py -dts datasets/ours/Walking.csv -bs 250 > logs/cdt_ibdd_ours_bs250/Walking.log 2>&1
-python ovr.py -dts datasets/ours/Avila.csv -bs 500 > logs/cdt_ibdd_ours_bs500/Avila.log 2>&1
-python ovr.py -dts datasets/ours/Chessgame.csv -bs 500 > logs/cdt_ibdd_ours_bs500/Chessgame.log 2>&1
-python ovr.py -dts datasets/ours/Covertype.csv -bs 500 > logs/cdt_ibdd_ours_bs500/Covertype.log 2>&1
-python ovr.py -dts datasets/ours/Dermatology.csv -bs 500 > logs/cdt_ibdd_ours_bs500/Dermatology.log 2>&1
-python ovr.py -dts datasets/ours/HAR.csv -bs 500 > logs/cdt_ibdd_ours_bs500/HAR.log 2>&1
-python ovr.py -dts datasets/ours/Land-use.csv -bs 500 > logs/cdt_ibdd_ours_bs500/Land-use.log 2>&1
-python ovr.py -dts datasets/ours/Mfeat.csv -bs 500 > logs/cdt_ibdd_ours_bs500/Mfeat.log 2>&1
-python ovr.py -dts datasets/ours/Mfeat_icdm21.csv -bs 500 > logs/cdt_ibdd_ours_bs500/Mfeat_icdm21.log 2>&1
-python ovr.py -dts datasets/ours/Mosquitoes.csv -bs 500 > logs/cdt_ibdd_ours_bs500/Mosquitoes.log 2>&1
-python ovr.py -dts datasets/ours/Nursery.csv -bs 500 > logs/cdt_ibdd_ours_bs500/Nursery.log 2>&1
-python ovr.py -dts datasets/ours/PhishingURL.csv -bs 500 > logs/cdt_ibdd_ours_bs500/PhishingURL.log 2>&1
-python ovr.py -dts datasets/ours/Satimage.csv -bs 500 > logs/cdt_ibdd_ours_bs500/Satimage.log 2>&1
-python ovr.py -dts datasets/ours/Walking.csv -bs 500 > logs/cdt_ibdd_ours_bs500/Walking.log 2>&1
-python ovr.py -dts datasets/ours/Avila.csv -bs 1000 > logs/cdt_ibdd_ours_bs1000/Avila.log 2>&1
-python ovr.py -dts datasets/ours/Chessgame.csv -bs 1000 > logs/cdt_ibdd_ours_bs1000/Chessgame.log 2>&1
-python ovr.py -dts datasets/ours/Covertype.csv -bs 1000 > logs/cdt_ibdd_ours_bs1000/Covertype.log 2>&1
-python ovr.py -dts datasets/ours/Dermatology.csv -bs 1000 > logs/cdt_ibdd_ours_bs1000/Dermatology.log 2>&1
-python ovr.py -dts datasets/ours/HAR.csv -bs 1000 > logs/cdt_ibdd_ours_bs1000/HAR.log 2>&1
-python ovr.py -dts datasets/ours/Land-use.csv -bs 1000 > logs/cdt_ibdd_ours_bs1000/Land-use.log 2>&1
-python ovr.py -dts datasets/ours/Mosquitoes.csv -bs 1000 > logs/cdt_ibdd_ours_bs1000/Mosquitoes.log 2>&1
-python ovr.py -dts datasets/ours/Nursery.csv -bs 1000 > logs/cdt_ibdd_ours_bs1000/Nursery.log 2>&1
-python ovr.py -dts datasets/ours/PhishingURL.csv -bs 1000 > logs/cdt_ibdd_ours_bs1000/PhishingURL.log 2>&1
-python ovr.py -dts datasets/ours/Satimage.csv -bs 1000 > logs/cdt_ibdd_ours_bs1000/Satimage.log 2>&1
-python ovr.py -dts datasets/ours/Walking.csv -bs 1000 > logs/cdt_ibdd_ours_bs1000/Walking.log 2>&1
+mkdir -p logs/cdt_ibdd_ours_bs250 && python ovr.py -dts datasets/ours/Avila.csv -bs 250 > logs/cdt_ibdd_ours_bs250/Avila.log 2>&1
+mkdir -p logs/cdt_ibdd_ours_bs250 && python ovr.py -dts datasets/ours/Chessgame.csv -bs 250 > logs/cdt_ibdd_ours_bs250/Chessgame.log 2>&1
+mkdir -p logs/cdt_ibdd_ours_bs250 && python ovr.py -dts datasets/ours/Covertype.csv -bs 250 > logs/cdt_ibdd_ours_bs250/Covertype.log 2>&1
+mkdir -p logs/cdt_ibdd_ours_bs250 && python ovr.py -dts datasets/ours/Dermatology.csv -bs 250 > logs/cdt_ibdd_ours_bs250/Dermatology.log 2>&1
+mkdir -p logs/cdt_ibdd_ours_bs250 && python ovr.py -dts datasets/ours/HAR.csv -bs 250 > logs/cdt_ibdd_ours_bs250/HAR.log 2>&1
+mkdir -p logs/cdt_ibdd_ours_bs250 && python ovr.py -dts datasets/ours/Land-use.csv -bs 250 > logs/cdt_ibdd_ours_bs250/Land-use.log 2>&1
+mkdir -p logs/cdt_ibdd_ours_bs250 && python ovr.py -dts datasets/ours/Mfeat.csv -bs 250 > logs/cdt_ibdd_ours_bs250/Mfeat.log 2>&1
+mkdir -p logs/cdt_ibdd_ours_bs250 && python ovr.py -dts datasets/ours/Mfeat_icdm21.csv -bs 250 > logs/cdt_ibdd_ours_bs250/Mfeat_icdm21.log 2>&1
+mkdir -p logs/cdt_ibdd_ours_bs250 && python ovr.py -dts datasets/ours/Mosquitoes.csv -bs 250 > logs/cdt_ibdd_ours_bs250/Mosquitoes.log 2>&1
+mkdir -p logs/cdt_ibdd_ours_bs250 && python ovr.py -dts datasets/ours/Nursery.csv -bs 250 > logs/cdt_ibdd_ours_bs250/Nursery.log 2>&1
+mkdir -p logs/cdt_ibdd_ours_bs250 && python ovr.py -dts datasets/ours/PhishingURL.csv -bs 250 > logs/cdt_ibdd_ours_bs250/PhishingURL.log 2>&1
+mkdir -p logs/cdt_ibdd_ours_bs250 && python ovr.py -dts datasets/ours/Satimage.csv -bs 250 > logs/cdt_ibdd_ours_bs250/Satimage.log 2>&1
+mkdir -p logs/cdt_ibdd_ours_bs250 && python ovr.py -dts datasets/ours/Walking.csv -bs 250 > logs/cdt_ibdd_ours_bs250/Walking.log 2>&1
+mkdir -p logs/cdt_ibdd_ours_bs500 && python ovr.py -dts datasets/ours/Avila.csv -bs 500 > logs/cdt_ibdd_ours_bs500/Avila.log 2>&1
+mkdir -p logs/cdt_ibdd_ours_bs500 && python ovr.py -dts datasets/ours/Chessgame.csv -bs 500 > logs/cdt_ibdd_ours_bs500/Chessgame.log 2>&1
+mkdir -p logs/cdt_ibdd_ours_bs500 && python ovr.py -dts datasets/ours/Covertype.csv -bs 500 > logs/cdt_ibdd_ours_bs500/Covertype.log 2>&1
+mkdir -p logs/cdt_ibdd_ours_bs500 && python ovr.py -dts datasets/ours/Dermatology.csv -bs 500 > logs/cdt_ibdd_ours_bs500/Dermatology.log 2>&1
+mkdir -p logs/cdt_ibdd_ours_bs500 && python ovr.py -dts datasets/ours/HAR.csv -bs 500 > logs/cdt_ibdd_ours_bs500/HAR.log 2>&1
+mkdir -p logs/cdt_ibdd_ours_bs500 && python ovr.py -dts datasets/ours/Land-use.csv -bs 500 > logs/cdt_ibdd_ours_bs500/Land-use.log 2>&1
+mkdir -p logs/cdt_ibdd_ours_bs500 && python ovr.py -dts datasets/ours/Mfeat.csv -bs 500 > logs/cdt_ibdd_ours_bs500/Mfeat.log 2>&1
+mkdir -p logs/cdt_ibdd_ours_bs500 && python ovr.py -dts datasets/ours/Mfeat_icdm21.csv -bs 500 > logs/cdt_ibdd_ours_bs500/Mfeat_icdm21.log 2>&1
+mkdir -p logs/cdt_ibdd_ours_bs500 && python ovr.py -dts datasets/ours/Mosquitoes.csv -bs 500 > logs/cdt_ibdd_ours_bs500/Mosquitoes.log 2>&1
+mkdir -p logs/cdt_ibdd_ours_bs500 && python ovr.py -dts datasets/ours/Nursery.csv -bs 500 > logs/cdt_ibdd_ours_bs500/Nursery.log 2>&1
+mkdir -p logs/cdt_ibdd_ours_bs500 && python ovr.py -dts datasets/ours/PhishingURL.csv -bs 500 > logs/cdt_ibdd_ours_bs500/PhishingURL.log 2>&1
+mkdir -p logs/cdt_ibdd_ours_bs500 && python ovr.py -dts datasets/ours/Satimage.csv -bs 500 > logs/cdt_ibdd_ours_bs500/Satimage.log 2>&1
+mkdir -p logs/cdt_ibdd_ours_bs500 && python ovr.py -dts datasets/ours/Walking.csv -bs 500 > logs/cdt_ibdd_ours_bs500/Walking.log 2>&1
+mkdir -p logs/cdt_ibdd_ours_bs1000 && python ovr.py -dts datasets/ours/Avila.csv -bs 1000 > logs/cdt_ibdd_ours_bs1000/Avila.log 2>&1
+mkdir -p logs/cdt_ibdd_ours_bs1000 && python ovr.py -dts datasets/ours/Chessgame.csv -bs 1000 > logs/cdt_ibdd_ours_bs1000/Chessgame.log 2>&1
+mkdir -p logs/cdt_ibdd_ours_bs1000 && python ovr.py -dts datasets/ours/Covertype.csv -bs 1000 > logs/cdt_ibdd_ours_bs1000/Covertype.log 2>&1
+mkdir -p logs/cdt_ibdd_ours_bs1000 && python ovr.py -dts datasets/ours/Dermatology.csv -bs 1000 > logs/cdt_ibdd_ours_bs1000/Dermatology.log 2>&1
+mkdir -p logs/cdt_ibdd_ours_bs1000 && python ovr.py -dts datasets/ours/HAR.csv -bs 1000 > logs/cdt_ibdd_ours_bs1000/HAR.log 2>&1
+mkdir -p logs/cdt_ibdd_ours_bs1000 && python ovr.py -dts datasets/ours/Land-use.csv -bs 1000 > logs/cdt_ibdd_ours_bs1000/Land-use.log 2>&1
+mkdir -p logs/cdt_ibdd_ours_bs1000 && python ovr.py -dts datasets/ours/Mosquitoes.csv -bs 1000 > logs/cdt_ibdd_ours_bs1000/Mosquitoes.log 2>&1
+mkdir -p logs/cdt_ibdd_ours_bs1000 && python ovr.py -dts datasets/ours/Nursery.csv -bs 1000 > logs/cdt_ibdd_ours_bs1000/Nursery.log 2>&1
+mkdir -p logs/cdt_ibdd_ours_bs1000 && python ovr.py -dts datasets/ours/PhishingURL.csv -bs 1000 > logs/cdt_ibdd_ours_bs1000/PhishingURL.log 2>&1
+mkdir -p logs/cdt_ibdd_ours_bs1000 && python ovr.py -dts datasets/ours/Satimage.csv -bs 1000 > logs/cdt_ibdd_ours_bs1000/Satimage.log 2>&1
+mkdir -p logs/cdt_ibdd_ours_bs1000 && python ovr.py -dts datasets/ours/Walking.csv -bs 1000 > logs/cdt_ibdd_ours_bs1000/Walking.log 2>&1
